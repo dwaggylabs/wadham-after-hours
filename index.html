@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#0a1226" />
+<title>Wadham After Hours</title>
+<style>
+  :root{
+    --honey:#e9d4a0; --cream:#f4ead0; --ink:#0a0f1f; --panel:rgba(12,17,33,.86);
+    --line:rgba(233,212,160,.28); --blue:#6fd0ff; --pink:#ff7fe0; --gold:#ffcf6b;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; height:100%; overflow:hidden; background:#05060f;
+    overscroll-behavior:none; touch-action:none; user-select:none; -webkit-user-select:none; }
+  body{ font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; color:var(--cream); }
+  canvas{ display:block; position:fixed; inset:0; }
+  .hidden{ display:none !important; }
+
+  /* ---------- overlays ---------- */
+  .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    z-index:70; padding:24px; }
+  .scrim{ background:radial-gradient(120% 120% at 50% 30%, rgba(20,28,54,.78), rgba(4,6,15,.94)); }
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:30px 34px; max-width:560px; width:100%; box-shadow:0 24px 80px rgba(0,0,0,.6);
+    backdrop-filter:blur(7px); }
+  .card h1{ font-size:30px; letter-spacing:.06em; margin:0 0 6px; color:var(--honey);
+    text-shadow:0 2px 18px rgba(255,193,90,.25); }
+  .card h2{ font-size:18px; font-weight:500; margin:0 0 18px; color:#cdd6ee; opacity:.92; }
+  .card p{ line-height:1.5; color:#dfe6f5; }
+  .moon{ font-size:13px; letter-spacing:.32em; text-transform:uppercase; color:var(--gold); opacity:.8; margin:0 0 14px; }
+  input[type=password]{ width:100%; padding:13px 14px; font-size:17px; border-radius:10px;
+    border:1px solid var(--line); background:rgba(255,255,255,.06); color:#fff; outline:none;
+    font-family:inherit; }
+  input[type=password]:focus{ border-color:var(--blue); box-shadow:0 0 0 3px rgba(111,208,255,.18); }
+  button.btn{ font-family:inherit; cursor:pointer; border:none; border-radius:10px;
+    padding:13px 20px; font-size:16px; font-weight:600; letter-spacing:.02em;
+    background:linear-gradient(180deg,#ffd98a,#e7b352); color:#2a1c05; transition:transform .08s ease, filter .15s; }
+  button.btn:hover{ filter:brightness(1.07); } button.btn:active{ transform:translateY(1px); }
+  button.ghost{ background:rgba(255,255,255,.08); color:var(--cream); border:1px solid var(--line); }
+  .row{ display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .err{ color:#ff9a9a; min-height:18px; margin:10px 2px 0; font-size:14px; }
+  .kbd{ display:inline-block; border:1px solid var(--line); border-bottom-width:2px; border-radius:6px;
+    padding:1px 7px; margin:0 1px; background:rgba(255,255,255,.05); font-size:13px; }
+
+  /* ---------- HUD ---------- */
+  #hud{ position:fixed; inset:0; z-index:40; pointer-events:none; }
+  #crosshair{ position:absolute; left:50%; top:50%; width:7px; height:7px; margin:-3.5px;
+    border-radius:50%; background:rgba(255,255,255,.6); box-shadow:0 0 6px rgba(0,0,0,.6); }
+  #compass{ position:absolute; left:50%; top:14px; transform:translateX(-50%);
+    width:360px; max-width:86vw; }
+  #compass-strip{ position:relative; height:30px; width:360px; max-width:86vw; margin:0 auto;
+    border:1px solid var(--line); border-radius:8px; overflow:hidden;
+    background:linear-gradient(180deg,rgba(10,16,33,.7),rgba(10,16,33,.4)); }
+  #compass-strip .card,#compass-strip .obj-tick{ position:absolute; top:0; transform:translateX(-50%);
+    line-height:30px; font-size:14px; }
+  #compass-strip .card{ color:#cfe0ff; opacity:.8; font-weight:600; }
+  #compass-strip .obj-tick{ color:var(--blue); font-size:13px; text-shadow:0 0 8px var(--blue); }
+  #compass:after{ content:""; position:absolute; left:50%; top:30px; transform:translateX(-50%);
+    border-left:6px solid transparent; border-right:6px solid transparent; border-top:7px solid var(--blue); }
+  #obj-text{ position:absolute; left:50%; top:52px; transform:translateX(-50%);
+    max-width:88vw; text-align:center; font-size:15px; color:#eaf1ff;
+    background:rgba(8,12,26,.6); border:1px solid var(--line); padding:5px 14px; border-radius:20px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #prompt{ position:absolute; left:50%; top:calc(50% + 26px); transform:translateX(-50%);
+    font-size:15px; color:#fff; background:rgba(8,12,26,.72); border:1px solid var(--line);
+    padding:6px 14px; border-radius:10px; white-space:nowrap;
+    box-shadow:0 4px 18px rgba(0,0,0,.4); }
+  #inv{ position:absolute; left:14px; bottom:14px; display:flex; flex-direction:column;
+    gap:6px; align-items:flex-start; max-width:42vw; }
+  #inv .chip{ font-size:13px; background:rgba(8,12,26,.66); border:1px solid var(--line);
+    padding:4px 10px; border-radius:20px; color:var(--cream); }
+  #toast{ position:absolute; left:50%; bottom:18px; transform:translateX(-50%) translateY(14px);
+    font-size:15px; background:rgba(8,12,26,.82); border:1px solid var(--line); color:#fff;
+    padding:9px 16px; border-radius:12px; max-width:88vw; text-align:center; opacity:0;
+    transition:opacity .35s, transform .35s; }
+  #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  #flash{ position:absolute; left:50%; top:36%; transform:translateX(-50%) scale(.9);
+    font-size:22px; color:var(--gold); text-shadow:0 2px 16px rgba(0,0,0,.7);
+    opacity:0; transition:opacity .3s, transform .3s; }
+  #flash.show{ opacity:1; transform:translateX(-50%) scale(1); }
+  #area{ position:absolute; left:50%; top:30%; transform:translateX(-50%);
+    font-size:34px; letter-spacing:.05em; color:var(--honey); text-shadow:0 3px 24px rgba(0,0,0,.7);
+    opacity:0; pointer-events:none; }
+  @keyframes areaFade{ 0%{opacity:0; transform:translateX(-50%) translateY(8px);}
+    15%{opacity:.95; transform:translateX(-50%) translateY(0);}
+    80%{opacity:.95;} 100%{opacity:0;} }
+  #area.show{ animation:areaFade 3.2s ease forwards; }
+
+  /* ---------- dialogue ---------- */
+  #dlg{ position:fixed; left:50%; bottom:104px; transform:translateX(-50%); z-index:60;
+    width:680px; max-width:92vw; background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:16px 20px; box-shadow:0 16px 50px rgba(0,0,0,.55);
+    backdrop-filter:blur(6px); cursor:pointer; }
+  #dlg-name{ color:var(--gold); font-weight:700; letter-spacing:.03em; margin-bottom:6px; font-size:17px; }
+  #dlg-text{ font-size:17px; line-height:1.5; color:#f0f4ff; min-height:24px; }
+  #dlg-more{ text-align:right; font-size:13px; color:#9fb0d6; margin-top:8px; }
+
+  /* ---------- quest log / help ---------- */
+  .panel-card{ max-width:620px; }
+  .panel-card h1{ display:flex; justify-content:space-between; align-items:center; }
+  .close-x{ pointer-events:auto; cursor:pointer; font-size:18px; color:#9fb0d6; border:1px solid var(--line);
+    border-radius:8px; padding:2px 10px; background:rgba(255,255,255,.05); }
+  #log-body{ max-height:62vh; overflow:auto; }
+  .q{ border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:10px 0;
+    background:rgba(255,255,255,.03); }
+  .q-h{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .q-t{ font-size:17px; font-weight:700; color:var(--honey); }
+  .q-s{ font-size:12px; opacity:.7; text-transform:uppercase; letter-spacing:.08em; }
+  .q-b{ font-size:14px; color:#dde6f6; margin-top:4px; line-height:1.45; }
+  .q-checks{ display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px; font-size:13px; }
+  .q-checks .ok{ color:#9be6a6; } .q-checks .no{ color:#c9d2e6; opacity:.85; }
+  .q-done{ border-color:rgba(155,230,166,.4); } .q-done .q-t{ color:#9be6a6; }
+  .q-active{ border-color:rgba(111,208,255,.4); }
+  .q-idle{ opacity:.7; }
+  #help-body p{ margin:8px 0; }
+
+  /* ---------- win ---------- */
+  #win .card{ text-align:center; border-color:rgba(255,127,224,.5);
+    box-shadow:0 0 80px rgba(255,127,224,.25); }
+  #win h1{ color:var(--pink); font-size:34px; }
+  #win-text{ font-size:18px; line-height:1.6; }
+  .disco{ font-size:54px; margin-bottom:6px; filter:drop-shadow(0 0 18px var(--pink)); }
+
+  /* ---------- touch controls ---------- */
+  #touch{ position:fixed; inset:0; z-index:50; pointer-events:none; }
+  #lookzone{ position:absolute; left:36%; top:0; right:0; bottom:0; pointer-events:auto; }
+  #stick{ position:absolute; left:20px; bottom:24px; width:132px; height:132px; border-radius:50%;
+    border:1px solid var(--line); background:rgba(10,16,33,.4); pointer-events:auto; touch-action:none; }
+  #nub{ position:absolute; left:50%; top:50%; width:58px; height:58px; margin:-29px;
+    border-radius:50%; background:rgba(233,212,160,.55); box-shadow:0 4px 14px rgba(0,0,0,.4); }
+  #tbtns{ position:absolute; right:18px; bottom:26px; display:flex; flex-direction:column; gap:12px;
+    align-items:center; pointer-events:none; }
+  #tbtns button{ pointer-events:auto; width:62px; height:62px; border-radius:50%; font-size:24px;
+    border:1px solid var(--line); background:rgba(10,16,33,.62); color:var(--cream); }
+  #btn-act{ width:84px !important; height:84px !important; font-size:30px;
+    background:rgba(231,179,82,.85) !important; color:#2a1c05 !important; }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <!-- HUD (visible during play) -->
+  <div id="hud">
+    <div id="compass"><div id="compass-strip"></div></div>
+    <div id="obj-text"></div>
+    <div id="crosshair"></div>
+    <div id="prompt" class="hidden"></div>
+    <div id="inv"></div>
+    <div id="flash" class="hidden"></div>
+    <div id="area"></div>
+    <div id="toast"></div>
+  </div>
+
+  <!-- dialogue -->
+  <div id="dlg" class="hidden">
+    <div id="dlg-name"></div>
+    <div id="dlg-text"></div>
+    <div id="dlg-more"></div>
+  </div>
+
+  <!-- touch controls (shown on touch devices) -->
+  <div id="touch" class="hidden">
+    <div id="lookzone"></div>
+    <div id="stick"><div id="nub"></div></div>
+    <div id="tbtns">
+      <button id="btn-help2" title="Help">❓</button>
+      <button id="btn-log2" title="Quests">📜</button>
+      <button id="btn-act" title="Interact">✋</button>
+    </div>
+  </div>
+
+  <!-- passphrase splash -->
+  <div id="splash" class="overlay scrim" style="z-index:100">
+    <div class="card">
+      <div class="moon">◗ a tuesday night at the college</div>
+      <h1 id="cfg-title">WADHAM AFTER HOURS</h1>
+      <h2 id="cfg-sub"></h2>
+      <p id="cfg-prompt" style="margin-bottom:10px"></p>
+      <input id="passfield" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="passphrase" />
+      <div class="err" id="passerr"></div>
+      <div class="row"><button class="btn" id="passbtn">Whisper it</button></div>
+    </div>
+  </div>
+
+  <!-- start / click-to-lock -->
+  <div id="start" class="overlay scrim hidden" style="z-index:90">
+    <div class="card" style="text-align:center">
+      <div class="disco">🌙</div>
+      <h1 id="start-title"></h1>
+      <h2 id="start-sub"></h2>
+      <p style="opacity:.9">You're locked in the Front Quad. Find <b>3 brass keys</b> and your
+        <b>Bod card</b>, spring the Porters' Lodge, then rally your friends, grab the college
+        drink and make it to <b>Plush</b> for Tuesgays.</p>
+      <p style="font-size:14px;opacity:.75">
+        <span class="desk"><span class="kbd">W</span><span class="kbd">A</span><span class="kbd">S</span><span class="kbd">D</span> move ·
+        mouse look · <span class="kbd">E</span> interact · <span class="kbd">L</span> quests · <span class="kbd">H</span> help · <span class="kbd">Esc</span> pause</span>
+        <span class="touchonly hidden">left stick to move · drag to look · ✋ to interact</span>
+      </p>
+      <div class="row" style="justify-content:center"><button class="btn" id="startbtn">Step into the night →</button></div>
+    </div>
+  </div>
+
+  <!-- pause -->
+  <div id="pause" class="overlay scrim hidden">
+    <div class="card" style="text-align:center; max-width:420px">
+      <h1>Paused</h1>
+      <p style="opacity:.85">The night holds its breath.</p>
+      <div class="row" style="justify-content:center">
+        <button class="btn" id="btn-resume">Resume</button>
+        <button class="btn ghost" id="btn-help">Help</button>
+        <button class="btn ghost" id="btn-restart">Restart</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- quest log -->
+  <div id="log" class="overlay scrim hidden">
+    <div class="card panel-card">
+      <h1>Quest Log <span class="close-x" data-close="log">esc ✕</span></h1>
+      <div id="log-body"></div>
+    </div>
+  </div>
+
+  <!-- help -->
+  <div id="help" class="overlay scrim hidden">
+    <div class="card panel-card">
+      <h1>How to play <span class="close-x" data-close="help">✕</span></h1>
+      <div id="help-body"></div>
+    </div>
+  </div>
+
+  <!-- win -->
+  <div id="win" class="overlay scrim hidden" style="z-index:80">
+    <div class="card">
+      <div class="disco">🪩</div>
+      <h1>TUESGAYS</h1>
+      <p id="win-text"></p>
+      <div class="row" style="justify-content:center"><button class="btn" id="win-again">Again? ↻</button></div>
+    </div>
+  </div>
+
+  <script>
+    // tiny pre-flight: reveal touch hints on touch devices
+    if (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window) {
+      document.querySelectorAll('.desk').forEach(e=>e.classList.add('hidden'));
+      document.querySelectorAll('.touchonly').forEach(e=>e.classList.remove('hidden'));
+    }
+  </script>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
