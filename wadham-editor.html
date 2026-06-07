@@ -107,7 +107,7 @@
 </div>
 <div id="tip"></div>
 
-<script>
+<script type="module">
 /* ============================ WORLD SNAPSHOT ============================
    Mirrors the current data.js. (A snapshot — if you edit data.js, re-export.)
    north = -Z (up), east = +X (right). x,z = centre; w = width(X), d = depth(Z). */
@@ -171,6 +171,33 @@ const WORLD = {
   ],
 };
 
+/* Pull the LIVE data.js (when served over http) so the map always matches the
+   game. Falls back to the snapshot above on file:// or if anything's missing. */
+try {
+  const m = await import('./data.js');
+  if (m && m.LOCATIONS && m.NPCS && m.ITEMS) adaptWorld(m);
+} catch (e) { /* file:// or no data.js — keep the embedded snapshot */ }
+
+function adaptWorld(m) {
+  const npcAt = (id) => (m.NPCS.find((n) => n.id === id) || {}).at;
+  const itemLoc = (it) => {
+    if (it.foundAt) return it.foundAt;
+    const q = (m.QUESTS || []).find((q) => (q.unlocks || []).includes(it.id));
+    return (q && q.giver && npcAt(q.giver)) || 'frontquad';
+  };
+  if (m.CONFIG) {
+    WORLD.start = m.CONFIG.startPosition ? { ...m.CONFIG.startPosition, facing: m.CONFIG.startFacing } : WORLD.start;
+    WORLD.passphrase = m.CONFIG.passphrase || WORLD.passphrase;
+  }
+  WORLD.locations = m.LOCATIONS.map((L) => ({ id: L.id, name: L.name,
+    type: L.goal ? 'goal' : L.gate ? 'gate' : L.type, x: L.x, z: L.z, w: L.w, d: L.d, h: L.h }));
+  WORLD.npcs = m.NPCS.map((n) => ({ id: n.id, name: n.name, at: n.at, colour: n.colour || '#ccc',
+    role: (n.role || 'flavour') + (n.questGiver ? ' · quest-giver' : '') + (n.action ? ' · ' + n.action : ''),
+    lines: n.lines || [] }));
+  WORLD.items = m.ITEMS.map((it) => ({ id: it.id, name: it.name, at: itemLoc(it),
+    how: it.foundAt ? 'found' : (it.reward ? 'reward: ' + it.reward : '?') }));
+}
+
 /* ============================== RENDER ================================ */
 const S = 6, PAD = 16;                       // px per metre, padding
 const svg = document.getElementById('map');
@@ -187,7 +214,7 @@ const ix=px=>Math.round((px-PAD)/S+minX), iz=py=>Math.round((py-PAD)/S+minZ);
 const NS='http://www.w3.org/2000/svg';
 function el(t,a){ const e=document.createElementNS(NS,t); for(const k in a) e.setAttribute(k,a[k]); return e; }
 const FILL={ quad:'#1d4a2a', garden:'#173a1d', forecourt:'#4a4030', range:'#c9aa68',
-  marker:'#9c7f48', gate:'#c06a2f', goal:'#4a1838' };
+  marker:'#9c7f48', gate:'#c06a2f', goal:'#4a1838', modern:'#3a4a5e' };
 
 // background
 svg.appendChild(el('rect',{x:0,y:0,width:Wpx,height:Hpx,fill:'#0e1525'}));

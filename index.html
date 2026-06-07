@@ -17,6 +17,23 @@
   canvas{ display:block; position:fixed; inset:0; }
   .hidden{ display:none !important; }
 
+  /* ---- effect overlays (ketamine / Elf Bar / dog poo) ---- */
+  #view.ket{ animation: ket 5s ease-in-out infinite; }
+  @keyframes ket{
+    0%{ filter:hue-rotate(0deg) saturate(1.5) contrast(1.05) blur(0px); }
+    25%{ filter:hue-rotate(80deg) saturate(2.2) contrast(1.1) blur(1.5px); }
+    50%{ filter:hue-rotate(200deg) saturate(2.6) contrast(1.15) blur(2.6px); }
+    75%{ filter:hue-rotate(310deg) saturate(2.2) contrast(1.1) blur(1.5px); }
+    100%{ filter:hue-rotate(360deg) saturate(1.5) contrast(1.05) blur(0px); }
+  }
+  #view.elf{ animation: elf 1.4s ease-out; }
+  @keyframes elf{ 0%{ filter:brightness(1.7) saturate(1.4) blur(2px); } 100%{ filter:none; } }
+  #poo{ position:fixed; left:0; right:0; bottom:0; height:130px; z-index:41; pointer-events:none;
+    opacity:0; transition:opacity .45s;
+    background:radial-gradient(120% 120% at 28% 130%, rgba(74,51,31,.6), rgba(74,51,31,0) 58%),
+               radial-gradient(90% 100% at 72% 140%, rgba(58,40,22,.55), rgba(0,0,0,0) 55%); }
+  #poo.show{ opacity:1; }
+
   /* ---------- overlays ---------- */
   .overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
     z-index:70; padding:24px; }
@@ -148,6 +165,8 @@
 </head>
 <body>
   <canvas id="view"></canvas>
+  <div id="poo"></div>
+  <audio id="plushaudio" preload="auto" crossorigin="anonymous"></audio>
 
   <!-- HUD (visible during play) -->
   <div id="hud">

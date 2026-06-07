@@ -1,3 +1,12 @@
 # local tooling / preview only — not needed on GitHub Pages
 .claude/
 .DS_Store
+
+# uploaded reference material (kept locally for my reference, not deployed)
+*.webarchive
+*.jpeg
+*.jpg
+WADHAM BALL*
+view in the quad*
+view looking south westerly*
+serve.py

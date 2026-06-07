@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS } from './data.js';
+import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STREET, TREES, POO } from './data.js';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (id) => document.getElementById(id);
@@ -55,6 +55,7 @@ let gateAnim = 0;
 const pickups = [];                   // {item, mesh, taken}
 const npcs = [];                      // {def, group, label, talked}
 const beacons = [];                   // objective beacon (one)
+const poos = [];                      // {x,z,stepped} Maggie Mae's leavings
 
 // player state
 const state = {
@@ -75,7 +76,8 @@ let running = true;                   // master run flag (false while a menu is 
 let started = false;
 
 const PLAYER = { h: 1.7, r: 0.55, speed: 5.4, run: 8.6, reach: 3.4 };
-const BOUNDARY = { minX: -92, maxX: 78, minZ: -128, maxZ: 84 };
+const BOUNDARY = { minX: -94, maxX: 86, minZ: -122, maxZ: 94 };
+const fx = { ket: 0, elf: 0, poo: 0, choir: 0, floorY: 1.7 };   // effect timers / state
 
 /* ============================================================================
    BOOT — passphrase splash, then the start overlay (pointer lock needs a click)
@@ -148,17 +150,21 @@ function initWorld() {
 
   // collect instanced bits while building, then commit them in single meshes
   ctx.windows = []; ctx.crenels = []; ctx.trees = []; ctx.lamps = [];
+  (TREES || []).forEach((t) => ctx.trees.push({ x: t.x, z: t.z, s: t.s || 1, kind: t.kind }));
 
   // collect wall passages (the lockable gate) FIRST, so any wall that overlaps
   // gets a matching gap carved out of it when it builds.
   PASSAGES = [];
   LOCATIONS.forEach((L) => { if (L.gate) PASSAGES.push(gatePassageRect(L)); });
 
+  (RAISED || []).forEach(buildRaised);
   LOCATIONS.forEach(buildLocation);
+  buildStreet();
   commitInstances();
 
   spawnPickups();
   spawnNPCs();
+  spawnPoo();
   buildBeacon();
 
   bindInput();
@@ -168,7 +174,7 @@ function initWorld() {
 
   // QA hook — only active if you load index.html#debug. Lets a test harness
   // orbit the camera to inspect the world. Never touched during normal play.
-  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, talkTo, nearestInteractable };
+  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, nearestInteractable };
 }
 
 const ctx = {};   // scratch buffers for instancing
@@ -253,14 +259,13 @@ function buildGround() {
   );
   base.rotation.x = -Math.PI / 2; base.position.y = -0.02; scene.add(base);
 
-  // gravel approach lane from the gate out to the forecourt + on to Plush
-  addPatch(-40, 0, 30, 14, COL.gravel, 0.005);
-  addPatch(-58, 16, 26, 12, COL.gravel, 0.005);
-  // path spines
-  addPatch(-11, 0, 22, 4, COL.gravel, 0.01);        // gate -> front quad
-  addPatch(0, 31, 6, 22, COL.gravel, 0.01);          // front quad -> back quad
-  addPatch(15, -32, 5, 18, COL.gravel, 0.01);        // north arch -> gardens
-  addPatch(24, 44, 26, 5, COL.gravel, 0.01);         // back quad -> webb/jcr
+  // gravel path spines (the Plush street is built separately in buildStreet)
+  addPatch(-11, 0, 22, 4, COL.gravel, 0.01);         // gate -> front quad
+  addPatch(-15, 26, 5, 12, COL.gravel, 0.01);        // SW arch -> back quad
+  addPatch(15, 26, 5, 12, COL.gravel, 0.01);         // SE arch -> back quad
+  addPatch(15, -33, 5, 20, COL.gravel, 0.01);        // NE arch -> gardens
+  addPatch(8, -31, 26, 4, COL.gravel, 0.01);         // garden entrance run
+  addPatch(31, 48, 18, 5, COL.gravel, 0.01);         // back quad -> bar quad (undercroft)
 }
 
 function addPatch(x, z, w, d, color, y = 0.01) {
@@ -276,8 +281,11 @@ function buildLocation(L) {
   switch (L.type) {
     case 'quad':   buildQuad(L); break;
     case 'garden': buildGarden(L); break;
-    case 'range':  L.gate ? buildGateTower(L) : buildRange(L); break;
+    case 'range':  buildRange(L); break;
+    case 'gate':   buildGateTower(L); break;
+    case 'modern': buildModern(L); break;
     case 'marker': buildMarker(L); break;
+    case 'goal':   buildPlush(L); break;
   }
 }
 
@@ -289,15 +297,47 @@ function buildQuad(L) {
 function buildGarden(L) {
   const court = L.id === 'forecourt';
   addPatch(L.x, L.z, L.w - 2, L.d - 2, court ? COL.gravel : COL.lawn, 0.012);
-  const n = court ? 3 : Math.round((L.w * L.d) / 240);
+  const n = court ? 3 : Math.round((L.w * L.d) / 300);
   for (let i = 0; i < n; i++) {
-    const x = L.x + rand(-L.w / 2 + 3, L.w / 2 - 3);
-    const z = L.z + rand(-L.d / 2 + 3, L.d / 2 - 3);
+    const x = L.x + rand(-L.w / 2 + 4, L.w / 2 - 4);
+    const z = L.z + rand(-L.d / 2 + 4, L.d / 2 - 4);
     if (court && Math.abs(z) < 9) continue;     // keep the entrance lane clear
-    ctx.trees.push({ x, z, s: rand(0.85, 1.5) });
+    ctx.trees.push({ x, z, s: rand(0.8, 1.4) });
   }
   ctx.lamps.push({ x: L.x - L.w / 2 + 3, z: L.z });
   ctx.lamps.push({ x: L.x + L.w / 2 - 3, z: L.z });
+  if (L.walled) buildGardenWalls(L);
+}
+
+/* A walled garden: stone walls round the footprint, with gaps at `gates`.
+   gates: [{side:'n'|'s'|'e'|'w', at: position along that wall, width}]. */
+function buildGardenWalls(L) {
+  const H = 2.6, T = 0.5;                                   // wall height / thickness
+  const x0 = L.x - L.w / 2, x1 = L.x + L.w / 2, z0 = L.z - L.d / 2, z1 = L.z + L.d / 2;
+  const gates = L.gates || [];
+  const sideGates = (s) => gates.filter((g) => g.side === s);
+  // build one wall run along an axis, leaving gaps for gates on that side
+  const run = (fixed, axis, a, b, sgates) => {
+    const cuts = [a];
+    sgates.forEach((g) => cuts.push(g.at - g.width / 2, g.at + g.width / 2));
+    cuts.push(b); cuts.sort((p, q) => p - q);
+    for (let i = 0; i < cuts.length - 1; i += 2) {
+      const s = cuts[i], e = cuts[i + 1]; if (e - s < 0.4) continue;
+      const cx = axis === 'x' ? (s + e) / 2 : fixed;
+      const cz = axis === 'z' ? (s + e) / 2 : fixed;
+      const w = axis === 'x' ? e - s : T;
+      const d = axis === 'z' ? e - s : T;
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, H, d), stoneMat(COL.stoneDark));
+      m.position.set(cx, H / 2, cz); scene.add(m);
+      addCollider(cx, cz, w, d);
+      // a little coping line of crenel blocks for texture
+      ctx.crenels.push({ x: cx, y: H + 0.1, z: cz });
+    }
+  };
+  run(z0, 'x', x0, x1, sideGates('n'));   // north wall (runs in X)
+  run(z1, 'x', x0, x1, sideGates('s'));   // south wall
+  run(x0, 'z', z0, z1, sideGates('w'));   // west wall (runs in Z)
+  run(x1, 'z', z0, z1, sideGates('e'));   // east wall
 }
 
 /* --- a RANGE: a stone building block, with optional carved passages ------ */
@@ -305,10 +345,12 @@ function buildRange(L) {
   const h = L.h || 12;
   const along = L.w >= L.d ? 'x' : 'z';     // long axis
   const halfLen = (along === 'x' ? L.w : L.d) / 2;
+  const baseY = raisedBase(L);
 
-  // gaps to carve: this range's own archway, plus any global passage (the gate)
+  // gaps to carve: this range's archway(s), plus any global passage (the gate)
   const gaps = [];
   if (L.archway) gaps.push({ c: L.archOffset || 0, w: 5, lintel: true });
+  if (L.arches) L.arches.forEach((off) => gaps.push({ c: off, w: 5, lintel: true }));
   PASSAGES.forEach((p) => {
     const hits = p.minX < L.x + L.w / 2 && p.maxX > L.x - L.w / 2 &&
                  p.minZ < L.z + L.d / 2 && p.maxZ > L.z - L.d / 2;
@@ -330,7 +372,7 @@ function buildRange(L) {
     const cz = along === 'z' ? L.z + segC : L.z;
     const w = along === 'x' ? segLen : L.w;
     const d = along === 'z' ? segLen : L.d;
-    addBlock(cx, cz, w, d, h, COL.stone, { windows: true, floors: Math.max(2, Math.round(h / 4)), crenel: true });
+    addBlock(cx, cz, w, d, h, COL.stone, { windows: true, floors: Math.max(2, Math.round(h / 4)), parapet: true, baseY, wstyle: L.style });
   }
 
   // lintels above this range's own archways (so they read as arches, not gaps)
@@ -340,18 +382,63 @@ function buildRange(L) {
     const w = along === 'x' ? g.w : L.w;
     const d = along === 'z' ? g.w : L.d;
     const lin = new THREE.Mesh(new THREE.BoxGeometry(w + 0.4, h - 4.6, d + 0.4), stoneMat(COL.stoneDark));
-    lin.position.set(cx, 4.6 + (h - 4.6) / 2, cz); scene.add(lin);
+    lin.position.set(cx, baseY + 4.6 + (h - 4.6) / 2, cz); scene.add(lin);
   });
+
+  if (L.project) buildProject(L);             // chapel / old library wing sticking out
+  if (L.cupola) addCupola(L.x, h, L.z);        // octagonal lantern on the Hall roof
 }
 
-/* a solid stone box: optionally instanced windows + crenellations on top */
+/* a wing projecting off a range (the Chapel & Old Library, sticking out east) */
+function buildProject(L) {
+  const p = L.project, h = p.h || L.h || 13;
+  const x = L.x + (p.dir === 'east' ? (L.w / 2 + p.w / 2) : p.dir === 'west' ? -(L.w / 2 + p.w / 2) : 0);
+  const z = p.z != null ? p.z : L.z;
+  addBlock(x, z, p.w, p.d, h, COL.stone, { windows: true, floors: 2, parapet: true, wstyle: 'chapel' });
+  addCupola(x, h, z, 0.7);                      // a little spirelet
+}
+
+/* an octagonal cupola lantern (the Hall/Chapel roof turrets) */
+function addCupola(x, baseH, z, scale = 1) {
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(1.1 * scale, 1.2 * scale, 2.4 * scale, 8),
+    stoneMat(COL.stoneDark));
+  post.position.set(x, baseH + 1.4 * scale, z); scene.add(post);
+  const dome = new THREE.Mesh(new THREE.ConeGeometry(1.3 * scale, 1.8 * scale, 8),
+    new THREE.MeshLambertMaterial({ color: 0x6a6e7a, flatShading: true }));
+  dome.position.set(x, baseH + 3.4 * scale, z); scene.add(dome);
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.22 * scale, 6, 5),
+    new THREE.MeshBasicMaterial({ color: 0xe8d49a }));
+  ball.position.set(x, baseH + 4.4 * scale, z); scene.add(ball);
+}
+
+/* the only higher ground — which RAISED zone (if any) a raised building sits on */
+function raisedBase(L) {
+  if (!L || !L.raised) return 0;
+  for (const r of RAISED || [])
+    if (Math.abs(L.x - r.x) < r.w / 2 + 4 && Math.abs(L.z - r.z) < r.d / 2 + 4) return r.y;
+  return 0;
+}
+
+/* a solid box: optional instanced windows + parapet/crenellations, raisable */
 function addBlock(x, z, w, d, h, color, opt = {}) {
+  const baseY = opt.baseY || 0;
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), stoneMat(color));
-  m.position.set(x, h / 2, z);
+  m.position.set(x, baseY + h / 2, z);
   scene.add(m);
   addCollider(x, z, w, d);
-  if (opt.windows) addWindows(x, z, w, d, h, opt.floors || 3);
-  if (opt.crenel) addCrenels(x, z, w, d, h);
+  if (opt.windows) addWindows(x, z, w, d, h, opt.floors || 3, baseY, opt.wstyle);
+  if (opt.crenel) addCrenels(x, z, w, d, baseY + h);
+  if (opt.parapet) addParapet(x, z, w, d, baseY + h);
+}
+
+/* a plain stone parapet coping + a hint of pitched roof behind it (Wadham's
+   ranges have flat parapets, not heavy battlements) */
+function addParapet(x, z, w, d, yTop) {
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.5, 0.6, d + 0.5), stoneMat(COL.stoneDark));
+  cap.position.set(x, yTop + 0.3, z); scene.add(cap);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(Math.max(0.6, w - 1), 1.5, Math.max(0.6, d - 1)),
+    new THREE.MeshLambertMaterial({ color: COL.roof, flatShading: true }));
+  roof.position.set(x, yTop + 1.1, z); scene.add(roof);
 }
 
 let _stoneCache = {};
@@ -364,25 +451,28 @@ function addCollider(x, z, w, d) {
   colliders.push({ minX: x - w / 2, maxX: x + w / 2, minZ: z - d / 2, maxZ: z + d / 2 });
 }
 
-/* window grid on the two long faces (collected for one InstancedMesh) */
-function addWindows(x, z, w, d, h, floors) {
+/* window grid on the two long faces (collected for one InstancedMesh).
+   wstyle 'hall'/'chapel' => tall traceried windows; baseY for raised buildings. */
+function addWindows(x, z, w, d, h, floors, baseY = 0, wstyle) {
+  const big = wstyle === 'hall' || wstyle === 'chapel';
   const faceLen = Math.max(w, d);
-  const cols = Math.max(1, Math.floor(faceLen / 3.2));
-  const rows = Math.max(1, floors);
+  const cols = Math.max(1, Math.floor(faceLen / (big ? 4.4 : 3.2)));
+  const rows = big ? 1 : Math.max(1, floors);
   const along = w >= d ? 'x' : 'z';
   const halfFace = (along === 'x' ? w : d) / 2 - 1.4;
   const off = (along === 'x' ? d : w) / 2 + 0.06;
+  const sx = big ? 1.35 : 1, sy = big ? (h - 3.4) / 1.5 : 1;
+  const litP = big ? 0.72 : 0.45;
   for (let s = -1; s <= 1; s += 2) {            // two long faces
     for (let r = 0; r < rows; r++) {
-      const wy = 2.0 + r * (h - 2.4) / rows;
+      const wy = baseY + (big ? h / 2 + 0.4 : 2.0 + r * (h - 2.4) / rows);
       for (let c = 0; c < cols; c++) {
         const t = cols === 1 ? 0 : (c / (cols - 1) - 0.5) * 2;
         const fx = t * halfFace;
         const px = along === 'x' ? x + fx : x + s * off;
         const pz = along === 'z' ? z + fx : z + s * off;
         const ry = along === 'x' ? (s < 0 ? Math.PI : 0) : (s < 0 ? -Math.PI / 2 : Math.PI / 2);
-        const lit = rng() < 0.45;
-        ctx.windows.push({ px, py: wy, pz, ry, lit });
+        ctx.windows.push({ px, py: wy, pz, ry, lit: rng() < litP, sx, sy });
       }
     }
   }
@@ -448,9 +538,8 @@ function buildGateDoors(L, gapHalf, doorH) {
   scene.add(grp); gateMesh = grp;
 }
 
-/* --- markers: frontispiece, terrace, plush ------------------------------ */
+/* --- markers: frontispiece, terrace ------------------------------------- */
 function buildMarker(L) {
-  if (L.goal) { buildPlush(L); return; }
   if (L.id === 'terrace') { buildTerrace(L); return; }
   // default ornate centrepiece (the Frontispiece): tiered tower with "statues"
   let y = 0; const tiers = [[L.w + 2, 6], [L.w, 5], [L.w - 1.5, (L.h || 12) - 11]];
@@ -506,24 +595,118 @@ function buildPlush(L) {
     b.position.set(ex + 3.5 + (i % 2) * 2.4, 0.5, L.z - 3 + i * 2); scene.add(b);
   }
 
-  // --- a lit gravel avenue from the gate out to Plush (so it's an obvious walk) ---
-  const gx = -27, gz = 0;
-  const goal = new THREE.Vector3(ex + 4, 0, L.z);
-  const steps = 9;
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps, px = gx + (goal.x - gx) * t, pz = gz + (goal.z - gz) * t;
-    addPatch(px, pz, 8, 8, COL.gravel, 0.006);
-    ctx.lamps.push({ x: px, z: pz + (i % 2 ? 3.2 : -3.2) });
-  }
-  // a little Parks Road / town context flanking the approach (kept off the path)
-  [[-44, 4], [-56, 40], [-66, 42], [-82, 10], [-88, 40]].forEach(([bx, bz], i) => {
-    const hh = 9 + (i % 2) * 4;
-    const h = new THREE.Mesh(new THREE.BoxGeometry(10, hh, 10), stoneMat(i % 2 ? 0x20242e : 0x262a34));
-    h.position.set(bx, hh / 2, bz); scene.add(h); addCollider(bx, bz, 10, 10);
-    addWindows(bx, bz, 10, 10, hh, 3);
-  });
+  L._goalPos = new THREE.Vector3(ex + 4, 0, L.z);   // stand here to enter (the street is built in buildStreet)
+}
 
-  L._goalPos = goal;
+/* --- modern buildings: pale ashlar + big glass (AC, Library, Bowra) ------ */
+function buildModern(L) {
+  const baseY = raisedBase(L), h = L.h || 12;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(L.w, h, L.d),
+    new THREE.MeshLambertMaterial({ color: 0x9a958a, flatShading: true }));
+  m.position.set(L.x, baseY + h / 2, L.z); scene.add(m);
+  addCollider(L.x, L.z, L.w, L.d);
+  // big cool glass panels on the long faces
+  const along = L.w >= L.d ? 'x' : 'z';
+  const cols = Math.max(2, Math.floor((along === 'x' ? L.w : L.d) / 3));
+  const off = (along === 'x' ? L.d : L.w) / 2 + 0.05;
+  const glassMat = new THREE.MeshBasicMaterial({ color: 0x213348, toneMapped: false });
+  const litMat = new THREE.MeshBasicMaterial({ color: 0xbfe0ff, toneMapped: false });
+  for (let s = -1; s <= 1; s += 2)
+    for (let r = 0; r < Math.max(2, Math.round(h / 3.5)); r++)
+      for (let c = 0; c < cols; c++) {
+        const t = (c / (cols - 1) - 0.5) * 2 * ((along === 'x' ? L.w : L.d) / 2 - 1.2);
+        const pane = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 2.2), rng() < 0.4 ? litMat : glassMat);
+        const px = along === 'x' ? L.x + t : L.x + s * off;
+        const pz = along === 'z' ? L.z + t : L.z + s * off;
+        pane.position.set(px, baseY + 2 + r * 3.2, pz);
+        pane.rotation.y = along === 'x' ? (s < 0 ? Math.PI : 0) : (s < 0 ? -Math.PI / 2 : Math.PI / 2);
+        scene.add(pane);
+      }
+  // the Access Centre's curved glass stair tower
+  if (L.id === 'ac') {
+    const tower = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, h + 2, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x2a3f55, transparent: true, opacity: 0.85, side: THREE.DoubleSide, toneMapped: false }));
+    tower.position.set(L.x - L.w / 2 - 1, (h + 2) / 2, L.z - L.d / 2 + 2); scene.add(tower);
+    addCollider(L.x - L.w / 2 - 1, L.z - L.d / 2 + 2, 4.4, 4.4);
+  }
+}
+
+/* --- the only RAISED ground: a stone terrace with steps up on one side --- */
+function buildRaised(L) {
+  const top = L.y;
+  const plat = new THREE.Mesh(new THREE.BoxGeometry(L.w, top, L.d),
+    new THREE.MeshLambertMaterial({ color: COL.stoneDark, flatShading: true }));
+  plat.position.set(L.x, top / 2, L.z); scene.add(plat);       // visual mesa (no collider — floorY lifts you)
+  addPatch(L.x, L.z, L.w - 0.6, L.d - 0.6, COL.paving, top + 0.02);
+  // a flight of steps on the chosen side
+  const side = L.steps || 'w';
+  const N = 5;
+  for (let i = 0; i < N; i++) {
+    const sy = top * (i + 1) / N;
+    let sx = L.x, sz = L.z, sw = L.w, sd = 4;
+    if (side === 'w') { sx = L.x - L.w / 2 - (N - i) * 1.0; sw = 2; sd = Math.min(L.d, 12); }
+    if (side === 'e') { sx = L.x + L.w / 2 + (N - i) * 1.0; sw = 2; sd = Math.min(L.d, 12); }
+    if (side === 'n') { sz = L.z - L.d / 2 - (N - i) * 1.0; sd = 2; sw = Math.min(L.w, 12); }
+    if (side === 's') { sz = L.z + L.d / 2 + (N - i) * 1.0; sd = 2; sw = Math.min(L.w, 12); }
+    const st = new THREE.Mesh(new THREE.BoxGeometry(sw, sy, sd), stoneMat(COL.paving));
+    st.position.set(sx, sy / 2, sz); scene.add(st);
+  }
+  for (let i = 0; i < 4; i++) ctx.lamps.push({ x: L.x - L.w / 2 + 4 + i * (L.w - 8) / 3, z: L.z + L.d / 2 - 2 });
+}
+
+/* the player's floor height at (x,z): raised on a terrace, with a ramp on the
+   steps side so you walk up smoothly */
+function floorYAt(x, z) {
+  let y = 0;
+  for (const r of RAISED || []) {
+    const inX = x > r.x - r.w / 2 && x < r.x + r.w / 2;
+    const inZ = z > r.z - r.d / 2 && z < r.z + r.d / 2;
+    if (inX && inZ) { y = Math.max(y, r.y); continue; }
+    // ramp band just outside the steps side
+    const ramp = 5;
+    if (r.steps === 'w' && inZ && x <= r.x - r.w / 2 && x > r.x - r.w / 2 - ramp)
+      y = Math.max(y, r.y * (1 - (r.x - r.w / 2 - x) / ramp));
+    if (r.steps === 'e' && inZ && x >= r.x + r.w / 2 && x < r.x + r.w / 2 + ramp)
+      y = Math.max(y, r.y * (1 - (x - (r.x + r.w / 2)) / ramp));
+    if (r.steps === 'n' && inX && z <= r.z - r.d / 2 && z > r.z - r.d / 2 - ramp)
+      y = Math.max(y, r.y * (1 - (r.z - r.d / 2 - z) / ramp));
+    if (r.steps === 's' && inX && z >= r.z + r.d / 2 && z < r.z + r.d / 2 + ramp)
+      y = Math.max(y, r.y * (1 - (z - (r.z + r.d / 2)) / ramp));
+  }
+  return y;
+}
+
+/* --- the street to Plush: Broad Street, left down Cornmarket, on the right */
+function buildStreet() {
+  if (!STREET) return;
+  const P = STREET.path;
+  for (let i = 0; i < P.length - 1; i++) {
+    const a = P[i], b = P[i + 1], n = 8;
+    const dx = b.x - a.x, dz = b.z - a.z, len = Math.hypot(dx, dz) || 1;
+    const ox = -dz / len * 3.6, oz = dx / len * 3.6;            // perpendicular (lamps to the side)
+    for (let j = 0; j <= n; j++) {
+      const t = j / n, x = a.x + dx * t, z = a.z + dz * t;
+      addPatch(x, z, 9, 9, COL.gravel, 0.006);
+      ctx.lamps.push({ x: x + (j % 2 ? ox : -ox), z: z + (j % 2 ? oz : -oz) });
+    }
+  }
+  // dark shopfronts
+  (STREET.shops || []).forEach(([bx, bz, bw, bd], i) => {
+    const hh = 8 + (i % 3) * 3;
+    const m = new THREE.Mesh(new THREE.BoxGeometry(bw, hh, bd), stoneMat(i % 2 ? 0x23262f : 0x2a2d36));
+    m.position.set(bx, hh / 2, bz); scene.add(m); addCollider(bx, bz, bw, bd);
+    addWindows(bx, bz, bw, bd, hh, 3);
+  });
+  // street-name signs
+  (STREET.signs || []).forEach((s) => {
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.4),
+      new THREE.MeshBasicMaterial({ map: textTex(s.text, '#eaf0ff', 40), transparent: true, fog: false, toneMapped: false }));
+    sign.position.set(s.x, 3.4, s.z);
+    sign.rotation.y = s.face === 'e' ? -Math.PI / 2 : s.face === 'w' ? Math.PI / 2 : s.face === 'n' ? Math.PI : 0;
+    scene.add(sign);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3.4, 6), stoneMat(0x222230));
+    post.position.set(s.x, 1.7, s.z); scene.add(post);
+  });
 }
 
 /* --- commit all instanced geometry into single draw calls --------------- */
@@ -537,7 +720,7 @@ function commitInstances() {
     const lit = new THREE.Color(COL.winLit), dark = new THREE.Color(COL.winDark);
     ctx.windows.forEach((w, i) => {
       e.set(0, w.ry, 0); q.setFromEuler(e);
-      m.compose(new THREE.Vector3(w.px, w.py, w.pz), q, new THREE.Vector3(1, 1, 1));
+      m.compose(new THREE.Vector3(w.px, w.py, w.pz), q, new THREE.Vector3(w.sx || 1, w.sy || 1, 1));
       inst.setMatrixAt(i, m);
       inst.setColorAt(i, w.lit ? lit : dark);
     });
@@ -707,18 +890,20 @@ function spawnNPCs() {
       ({ x, z } = findOpenSpot(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad, 0.9));
     }
     const group = npcFigure(def);
-    group.position.set(x, 0, z);
+    const by = floorYAt(x, z);                 // sit on the raised terrace if there is one
+    group.position.set(x, by, z);
     scene.add(group);
     const tag = def.questGiver ? 'quest' : def.role === 'friend' ? 'friend' : '';
     const label = makeLabel(def.name, tag);
-    label.position.set(x, 2.5, z); scene.add(label);
-    npcs.push({ def, group, label, talked: false, baseX: x, baseZ: z, phase: rng() * 6 });
+    label.position.set(x, by + 2.5, z); scene.add(label);
+    npcs.push({ def, group, label, talked: false, baseX: x, baseZ: z, by, phase: rng() * 6 });
   });
 }
 
 function npcFigure(def) {
   const g = new THREE.Group();
   const col = new THREE.Color(def.colour || '#cccccc');
+  if (def.dog) { buildDog(g, col); return g; }
   const ghost = def.ghost || def.role === 'oracle';
   const bodyMat = new THREE.MeshLambertMaterial({
     color: ghost ? COL.ghost : col, flatShading: true,
@@ -726,18 +911,45 @@ function npcFigure(def) {
     emissive: ghost ? 0x2a3a66 : col.clone().multiplyScalar(0.22), // faint self-glow so they read at night
   });
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 1.2, 7), bodyMat);
-  body.position.y = 0.85;
+  body.position.y = 0.85; body.userData.baseY = 0.85;
   const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.26, 0),
     new THREE.MeshLambertMaterial({ color: 0xe7c9a0, flatShading: true, transparent: ghost, opacity: ghost ? 0.6 : 1 }));
-  head.position.y = 1.7;
+  head.position.y = 1.7; head.userData.baseY = 1.7;
   g.add(body); g.add(head);
-  // a soft marker glow so NPCs read at night
+  if (def.hair && !ghost) {                       // a cap of hair (ginger/blonde/brown)
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.295, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.6),
+      new THREE.MeshLambertMaterial({ color: def.hair, flatShading: true }));
+    hair.position.y = 1.78; head.add(hair); hair.position.y = 0.08;
+  }
+  if (def.glasses) {
+    const gm = new THREE.MeshBasicMaterial({ color: 0x14171c });
+    [-0.1, 0.1].forEach((dx) => {
+      const lens = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.02, 6, 10), gm);
+      lens.position.set(dx, 0.0, 0.24); head.add(lens);
+    });
+  }
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({
     map: radialTex('#ffffff'), color: col, transparent: true, opacity: 0.4,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   glow.scale.set(3.0, 3.0, 1); glow.position.y = 1.1; g.add(glow);
   g.userData.body = body; g.userData.head = head;
   return g;
+}
+
+/* Maggie Mae, the college dog */
+function buildDog(g, col) {
+  const mat = new THREE.MeshLambertMaterial({ color: col, flatShading: true });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.5, 0.42), mat); body.position.set(0, 0.55, 0);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.42, 0.38), mat); head.position.set(0.62, 0.72, 0);
+  const snout = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.24), mat); snout.position.set(0.88, 0.64, 0);
+  const ear = (z) => { const e = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.18, 0.06), mat); e.position.set(0.55, 0.95, z); g.add(e); };
+  ear(0.12); ear(-0.12);
+  [[-0.32, 0.16], [-0.32, -0.16], [0.34, 0.16], [0.34, -0.16]].forEach(([lx, lz]) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.5, 0.14), mat); leg.position.set(lx, 0.25, lz); g.add(leg);
+  });
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.1, 0.1), mat); tail.position.set(-0.62, 0.72, 0); tail.rotation.z = 0.6;
+  g.add(body, head, snout, tail);
+  g.userData.dog = true; g.userData.body = body; g.userData.head = head; g.userData.tail = tail;
 }
 
 function makeLabel(text, tag) {
@@ -817,12 +1029,53 @@ function takePickup(pk) {
   updateHUD();
 }
 
+/* ---- Maggie Mae's poo (step in it, regret it) -------------------------- */
+function spawnPoo() {
+  (POO || []).forEach((p) => {
+    const spot = findOpenSpot(p.x, p.z, 0.3);
+    const mat = new THREE.MeshLambertMaterial({ color: 0x46331f, flatShading: true });
+    const a = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.2, 6), mat); a.position.set(spot.x, 0.1, spot.z); a.rotation.y = rng() * 6;
+    const b = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.15, 6), mat); b.position.set(spot.x + 0.06, 0.24, spot.z + 0.04);
+    scene.add(a); scene.add(b);
+    poos.push({ x: spot.x, z: spot.z, stepped: false });
+  });
+}
+
+/* ---- character actions (run when their dialogue closes) ---------------- */
+function giveItem(id) {
+  if (state.inventory.has(id)) return;
+  const it = item(id); state.inventory.add(id);
+  beep('pickup'); if (it) { toast(`Got: ${it.name}`); flashItem(it); }
+  evaluateQuests(); updateHUD();
+}
+function runAction(action, n) {
+  switch (action) {
+    case 'elfbar': elfPuff(); break;
+    case 'ketamine': ketamine(); break;
+    case 'givebook': giveItem('book'); break;
+    case 'givegame': giveItem('game'); break;
+    case 'dog': beep('friend'); if (n && n.group.userData.tail) n.group.userData.tail.userData.wag = 1.4; break;
+    case 'singer': break;   // Finn's singing is ambient (see the audio section)
+  }
+}
+function ketamine() { fx.ket = 26; beep('gate'); toast("You take the bump. The edges of Wadham begin to… breathe."); }
+function elfPuff() { fx.elf = 5; beep('talk'); toast("Watermelon ice fills your lungs. You feel briefly, chemically, fine."); }
+
+/* drive the screen-effect overlays from the fx timers (CSS does the visuals) */
+function applyFx(dt) {
+  ['ket', 'elf', 'poo'].forEach((k) => { if (fx[k] > 0) fx[k] = Math.max(0, fx[k] - dt); });
+  const v = $('view');
+  if (v) { v.classList.toggle('ket', fx.ket > 0); v.classList.toggle('elf', fx.elf > 0); }
+  const p = $('poo'); if (p) p.classList.toggle('show', fx.poo > 0);
+}
+
 /* dialogue --------------------------------------------------------------- */
-const dialogue = { open: false, lines: [], i: 0, npc: null };
+const dialogue = { open: false, lines: [], i: 0, npc: null, action: null };
 
 function talkTo(n) {
   const lines = linesForNPC(n);
   dialogue.open = true; dialogue.lines = lines; dialogue.i = 0; dialogue.npc = n;
+  dialogue.action = n.def.action || null;          // fires when the dialogue closes
   beep('talk');
   $('dlg').classList.remove('hidden');
   $('dlg-name').textContent = n.def.name;
@@ -842,6 +1095,8 @@ function advanceDialogue() {
 
 function closeDialogue() {
   dialogue.open = false; $('dlg').classList.add('hidden');
+  const a = dialogue.action, n = dialogue.npc; dialogue.action = null;
+  if (a) runAction(a, n);
 }
 
 /* Build what an NPC says, honouring quest state. Content is all from data.js;
@@ -1186,7 +1441,7 @@ function updatePlayer(dt) {
     if (isTouch) { s += move.x; f -= move.y; }
   }
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  const sp = (sprint ? PLAYER.run : PLAYER.speed);
+  const sp = (sprint ? PLAYER.run : PLAYER.speed) * (fx.ket > 0 ? 0.68 : 1);   // ketamine = woozy
 
   // forward/right from camera yaw (flattened)
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0;
@@ -1208,13 +1463,25 @@ function updatePlayer(dt) {
   nx = resolveAxis(nx, camera.position.z, 'x');
   nz = resolveAxis(nx, nz, 'z');
 
-  // boundary + the gate lock (can't pass west until gate_open)
-  const minX = state.flags.has('gate_open') ? BOUNDARY.minX : -22.5;
-  nx = clamp(nx, minX, BOUNDARY.maxX);
+  // boundary
+  nx = clamp(nx, BOUNDARY.minX, BOUNDARY.maxX);
   nz = clamp(nz, BOUNDARY.minZ, BOUNDARY.maxZ);
+  // pre-gate lock: can't slip out to the west exterior at the gate's latitude
+  if (!state.flags.has('gate_open') && nz > -26 && nz < 30 && nx < -22.5) nx = -22.5;
 
   camera.position.x = nx; camera.position.z = nz;
-  camera.position.y = PLAYER.h + Math.sin(performance.now() * 0.01) * 0.015 * Math.min(1, velocity.length());
+  // floor height (the raised Library/Bowra terrace) + smoothed head-bob
+  const targetY = floorYAt(nx, nz) + PLAYER.h;
+  fx.floorY += (targetY - fx.floorY) * Math.min(1, dt * 8);
+  camera.position.y = fx.floorY + Math.sin(performance.now() * 0.01) * 0.015 * Math.min(1, velocity.length());
+
+  // step in Maggie Mae's poo (you will track it into Plush)
+  for (const poo of poos) {
+    if (!poo.stepped && Math.hypot(nx - poo.x, nz - poo.z) < 0.7) {
+      poo.stepped = true; fx.poo = 7; beep('step');
+      toast("…you've stepped in Maggie Mae's poo. Genuinely grim.");
+    }
+  }
 
   // footsteps, paced to speed
   const sp2 = Math.hypot(velocity.x, velocity.z);
@@ -1331,16 +1598,23 @@ function tick() {
 
   // pickups bob/spin
   pickups.forEach((pk) => { if (pk.taken) return; pk.mesh.rotation.y += dt * 1.2; pk.mesh.position.y = pk.mesh.userData.base + Math.sin(t * 2 + pk.mesh.position.x) * 0.12; });
-  // npcs idle + face you
+  // npcs idle + face you (dogs wag instead of bob)
   npcs.forEach((n) => {
-    const b = n.group.userData.body, hd = n.group.userData.head;
-    const bob = Math.sin(t * 1.5 + n.phase) * 0.04;
-    if (b) b.position.y = 0.85 + bob; if (hd) hd.position.y = 1.7 + bob;
-    n.group.lookAt(camera.position.x, n.group.position.y, camera.position.z);
-    n.label.position.y = 2.5 + bob;
+    const u = n.group.userData, bob = Math.sin(t * 1.5 + n.phase) * 0.04;
+    if (u.dog) {
+      if (u.tail) { if (u.tail.userData.wag > 0) u.tail.userData.wag -= dt; u.tail.rotation.y = Math.sin(t * (u.tail.userData.wag > 0 ? 18 : 3)) * 0.5; }
+    } else {
+      if (u.body) u.body.position.y = (u.body.userData.baseY || 0.85) + bob;
+      if (u.head) u.head.position.y = (u.head.userData.baseY || 1.7) + bob;
+      n.group.lookAt(camera.position.x, n.group.position.y, camera.position.z);
+    }
+    n.label.position.y = n.by + 2.5 + bob;
   });
   // beacon spin
   if (beacons[0].visible) { beacons[0].rotation.y += dt; beacons[0].position.y = Math.sin(t * 2) * 0.1; }
+
+  applyFx(dt);
+  if (SND.started) { sndChoirNear(); sndPlushNear(); }
 
   if (running) { updateCompass(); updatePrompt(); checkWin(); updateArea(); }
 
@@ -1369,10 +1643,88 @@ function sndInit() {
     master.gain.value = SND.on ? 0.9 : 0.0; master.connect(ctx.destination);
     const music = SND.music = ctx.createGain(); music.gain.value = 0.6; music.connect(master);
     sndPad(ctx, music);
+    SND.choir = ctx.createGain(); SND.choir.gain.value = 0; SND.choir.connect(master);
+    sndChoir(ctx, SND.choir);                 // Finn, mid-rehearsal, swells near the chapel
+    setupPlushAudio();                         // the club track for Plush
     SND.started = true;
     sndBellLoop();
   } catch (e) { /* audio is optional */ }
 }
+
+/* Finn's choir — sustained voices that swell as you near the ante-chapel */
+function sndChoir(ctx, out) {
+  const filt = ctx.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = 850; filt.Q.value = 0.9; filt.connect(out);
+  const bus = ctx.createGain(); bus.gain.value = 0.5; bus.connect(filt);
+  [196, 246.94, 293.66, 392].forEach((f, i) => {     // a slow G-major chord of "voices"
+    const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+    const g = ctx.createGain(); g.gain.value = 0.12; o.connect(g).connect(bus); o.start();
+    const vib = ctx.createOscillator(); vib.frequency.value = 4.5 + i * 0.4;
+    const vg = ctx.createGain(); vg.gain.value = f * 0.006; vib.connect(vg).connect(o.frequency); vib.start();
+    const sw = ctx.createOscillator(); sw.frequency.value = 0.07 + i * 0.02;
+    const sg = ctx.createGain(); sg.gain.value = 0.06; sw.connect(sg).connect(g.gain); sw.start();
+  });
+}
+function sndChoirNear() {
+  if (!SND.choir) return;
+  const ch = loc('chapel'); if (!ch) return;
+  const d = Math.hypot(camera.position.x - ch.x, camera.position.z - ch.z);
+  const target = d < 24 ? (1 - d / 24) * 0.5 : 0;
+  SND.choir.gain.value += (target - SND.choir.gain.value) * 0.04;
+}
+
+/* Plush — an mp3 if one loads, else a procedural four-on-the-floor club beat */
+function setupPlushAudio() {
+  const a = $('plushaudio');
+  if (a && CONFIG.plushMusicUrl) {
+    a.src = CONFIG.plushMusicUrl; a.loop = true; a.volume = 0;
+    a.addEventListener('canplaythrough', () => { SND.plushReady = true; });
+    a.addEventListener('error', () => { SND.plushReady = false; });
+    a.load();
+    SND.plushAudio = a;
+  }
+}
+function sndPlushNear() {
+  const plL = loc('plush'); if (!plL) return;
+  const gp = plL._goalPos || { x: plL.x, z: plL.z };
+  const d = Math.hypot(camera.position.x - gp.x, camera.position.z - gp.z);
+  const near = d < 38;
+  if (near && !SND.plushPlaying) {
+    SND.plushPlaying = true;
+    if (SND.plushReady && SND.plushAudio) { try { SND.plushAudio.currentTime = 0; SND.plushAudio.play(); } catch (e) {} }
+    else sndClubStart();
+    if (SND.music) SND.music.gain.value = 0.1;       // duck the ambient pad
+  } else if (!near && SND.plushPlaying) {
+    SND.plushPlaying = false;
+    if (SND.plushAudio) try { SND.plushAudio.pause(); } catch (e) {}
+    sndClubStop();
+    if (SND.music) SND.music.gain.value = 0.6;
+  }
+  if (SND.plushAudio && SND.plushReady)
+    SND.plushAudio.volume = near ? clamp(1 - d / 38, 0, 1) * (CONFIG.plushMusicVolume || 0.5) * (SND.on ? 1 : 0) : 0;
+}
+function sndClubStart() {
+  if (SND.club) return;
+  const ctx = SND.ctx; if (!ctx) return;
+  const bus = ctx.createGain(); bus.gain.value = 0.5; bus.connect(SND.master); SND.clubBus = bus;
+  SND.club = { stop: false, step: 0 };
+  const bpm = 126, beat = 60 / bpm, stepDur = beat / 4;
+  const riff = [0, 3, 7, 10, 12, 10, 7, 3];
+  const loop = () => {
+    if (!SND.club || SND.club.stop) return;
+    const st = SND.club.step, now = ctx.currentTime + 0.02;
+    if (st % 4 === 0) clubKick(now);
+    if (st % 2 === 1) clubHat(now);
+    if (st % 4 === 0) clubTone(now, 55 * Math.pow(2, [0, 0, 5, 3][(st / 4) % 4] / 12), 'sine', 0.2, beat * 0.9);
+    if (st % 2 === 0) clubTone(now, 220 * Math.pow(2, riff[(st / 2) % riff.length] / 12), 'sawtooth', 0.05, stepDur * 1.6);
+    SND.club.step = (st + 1) % 16;
+    SND.club.timer = setTimeout(loop, stepDur * 1000);
+  };
+  loop();
+}
+function sndClubStop() { if (SND.club) { SND.club.stop = true; clearTimeout(SND.club.timer); SND.club = null; } if (SND.clubBus) { SND.clubBus.gain.value = 0; SND.clubBus = null; } }
+function clubKick(t) { const ctx = SND.ctx, o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.12); g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2); o.connect(g).connect(SND.clubBus); o.start(t); o.stop(t + 0.22); }
+function clubHat(t) { const ctx = SND.ctx, sr = ctx.sampleRate, len = Math.floor(sr * 0.03), buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len); const s = ctx.createBufferSource(); s.buffer = buf; const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000; const g = ctx.createGain(); g.gain.value = 0.1; s.connect(hp).connect(g).connect(SND.clubBus); s.start(t); }
+function clubTone(t, f, type, vol, dur) { const ctx = SND.ctx, o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(SND.clubBus); o.start(t); o.stop(t + dur + 0.05); }
 
 function sndPad(ctx, out) {                       // a quiet, sacred-ish drone in open fifths
   const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600; lp.Q.value = 0.6; lp.connect(out);
@@ -1423,6 +1775,7 @@ function sndStep() {                               // a soft footfall (filtered 
 function sndToggle() {
   SND.on = !SND.on;
   if (SND.master) SND.master.gain.linearRampToValueAtTime(SND.on ? 0.9 : 0.0, SND.ctx.currentTime + 0.18);
+  if (SND.plushAudio) SND.plushAudio.muted = !SND.on;
   toast(SND.on ? '🔊 Sound on' : '🔇 Muted');
   const b = $('btn-mute'); if (b) b.textContent = SND.on ? '🔊' : '🔇';
 }
