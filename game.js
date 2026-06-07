@@ -78,7 +78,7 @@ let started = false;
 
 const PLAYER = { h: 1.7, r: 0.55, speed: 5.4, run: 8.6, reach: 3.4 };
 const BOUNDARY = { minX: -95, maxX: 112, minZ: -152, maxZ: 118 };
-const fx = { ket: 0, elf: 0, poo: 0, drunk: 0, choir: 0, floorY: 1.7 };   // effect timers / state
+const fx = { ket: 0, elf: 0, poo: 0, drunk: 0, khole: 0, choir: 0, floorY: 1.7 };   // effect timers / state
 
 /* ============================================================================
    BOOT — passphrase splash, then the start overlay (pointer lock needs a click)
@@ -180,7 +180,7 @@ function initWorld() {
 
   // QA hook — only active if you load index.html#debug. Lets a test harness
   // orbit the camera to inspect the world. Never touched during normal play.
-  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, lockedGates, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, drinkUp, nearestInteractable, updateLockedGates, updateVillain };
+  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, lockedGates, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, drinkUp, nearestInteractable, updateLockedGates, updateVillain, respawnRandom };
 }
 
 const ctx = {};   // scratch buffers for instancing
@@ -648,9 +648,10 @@ function buildTerrace(L) {
 function buildPlush(L) {
   // the club itself
   const club = new THREE.Mesh(new THREE.BoxGeometry(L.w, L.h, L.d),
-    new THREE.MeshLambertMaterial({ color: 0x180b22, flatShading: true }));
+    new THREE.MeshLambertMaterial({ color: 0x2a1740, emissive: 0x1c0f2c, flatShading: true }));
   club.position.set(L.x, L.h / 2, L.z); scene.add(club);
   addCollider(L.x, L.z, L.w, L.d);
+  addWindows(L.x, L.z, L.w, L.d, L.h, 2);   // a couple of lit windows so it reads as a building, not a void
 
   const ex = L.x + L.w / 2;                 // entrance faces the gate (east / +X)
   const door = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 3.2),
@@ -966,7 +967,10 @@ function commitLamps() {
     { x: 13, z: -26 }, { x: 13, z: -40 },                        // north path into the gardens
     { x: -30, z: -66 }, { x: 13, z: -90 },                       // locked-garden gates
   ];
-  const lamps = ctx.lamps.concat(extra);
+  // keep the Plush entrance clear — a street lamp was planting itself in the doorway
+  const plGoal = (loc('plush') || {})._goalPos;
+  const lamps = ctx.lamps.concat(extra).filter((l) =>
+    !(plGoal && Math.hypot(l.x - plGoal.x, l.z - plGoal.z) < 9));
   if (!lamps.length) return;
   const pg = new THREE.CylinderGeometry(0.08, 0.1, 3.2, 5);
   const pi = new THREE.InstancedMesh(pg, stoneMat(0x222230), lamps.length);
@@ -1275,9 +1279,16 @@ function updateVillain(dt) {
   v.retreat = Math.max(0, (v.retreat || 0) - dt);
   v.cooldown = Math.max(0, (v.cooldown || 0) - dt);
   // close-contact bump — only at very short range
-  if (v.retreat <= 0 && v.cooldown <= 0 && dist < 2.3) {
-    ketamine(6, "Arran corners you and forces a bump — the quad smears, tilts and slows to a woozy crawl.");
-    v.retreat = 3.0; v.cooldown = 13;            // back off, then a grace period
+  if (v.retreat <= 0 && v.cooldown <= 0 && fx.khole <= 0 && dist < 2.3) {
+    v.hits = (v.hits || 0) + 1;
+    if (v.hits >= 3) {                            // THIRD hit → a full K-hole, then a random respawn
+      v.hits = 0; fx.khole = 58; fx.ket = 0;
+      beep('gate'); toast("Arran gets you a THIRD time. You drop into a K-HOLE — the whole college folds in on itself…");
+      v.retreat = 8; v.cooldown = 24;
+    } else {
+      ketamine(6, "Arran forces a bump — the quad smears, tilts and slows to a woozy crawl. (" + v.hits + "/3)");
+      v.retreat = 3.0; v.cooldown = 13;           // back off, then a grace period
+    }
   }
   const chasing = v.retreat <= 0, sign = chasing ? 1 : -1;
   const speed = chasing ? 1.95 : 5.2;            // slow stalk; a quicker scuttle away after a hit
@@ -1296,13 +1307,29 @@ function updateVillain(dt) {
 /* drive the screen-effect overlays from the fx timers (CSS does the visuals) */
 function applyFx(dt) {
   ['ket', 'elf', 'poo', 'drunk'].forEach((k) => { if (fx[k] > 0) fx[k] = Math.max(0, fx[k] - dt); });
+  if (fx.khole > 0) { fx.khole = Math.max(0, fx.khole - dt); if (fx.khole === 0) respawnRandom(); }   // ...come to, somewhere random
   const v = $('view');
   if (v) {
-    v.classList.toggle('ket', fx.ket > 0);
+    v.classList.toggle('khole', fx.khole > 0);
+    v.classList.toggle('ket', fx.ket > 0 && fx.khole <= 0);
     v.classList.toggle('elf', fx.elf > 0);
-    v.classList.toggle('drunk', fx.drunk > 0 && fx.ket <= 0);   // ketamine takes visual priority
+    v.classList.toggle('drunk', fx.drunk > 0 && fx.ket <= 0 && fx.khole <= 0);   // ket / khole take visual priority
   }
   const p = $('poo'); if (p) p.classList.toggle('show', fx.poo > 0);
+}
+
+/* K-hole respawn — wake up at a random spot that's accessible right now */
+function respawnRandom() {
+  const open = (key) => lockedGates.some((g) => g.key === key && g.open);
+  const ids = ['frontquad', 'backquad', 'fellowsgarden', 'cloister', 'barquad', 'library'];
+  if (open('key_wardens')) ids.push('wardensgarden');
+  if (open('key_private')) ids.push('privategarden');
+  const cands = ids.map(loc).filter(Boolean);
+  const pick = cands[Math.floor(Math.random() * cands.length)] || loc('frontquad');
+  const spot = findOpenSpot(pick.x, pick.z, 0.7);
+  const fy = floorYAt(spot.x, spot.z) + PLAYER.h;
+  camera.position.set(spot.x, fy, spot.z); fx.floorY = fy;
+  beep('friend'); toast("You come to, slumped somewhere new. You have absolutely no idea where you are.");
 }
 
 /* dialogue --------------------------------------------------------------- */
@@ -1697,7 +1724,7 @@ function updatePlayer(dt) {
     if (isTouch) { s += move.x; f -= move.y; }
   }
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  const sp = (sprint ? PLAYER.run : PLAYER.speed) * (fx.ket > 0 ? 0.68 : 1) * (fx.drunk > 0 ? 0.82 : 1);   // ket/drink = woozy
+  const sp = (sprint ? PLAYER.run : PLAYER.speed) * (fx.ket > 0 ? 0.68 : 1) * (fx.drunk > 0 ? 0.82 : 1) * (fx.khole > 0 ? 0.3 : 1);   // ket/drink/khole = woozy
 
   // forward/right from camera yaw (flattened)
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0;

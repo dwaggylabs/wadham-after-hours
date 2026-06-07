@@ -55,7 +55,7 @@ export const CONFIG = {
 ----------------------------------------------------------------------------- */
 export const LOCATIONS = [
   // ---------------- APPROACH (west, off Parks Road) ----------------
-  { id: "forecourt",  name: "Forecourt",          type: "garden", x: -36, z: 0,  w: 20, d: 30 },
+  { id: "forecourt",  name: "Broad Street",        type: "garden", x: -36, z: 0,  w: 20, d: 30 },
   { id: "gatetower",  name: "Porters' Lodge",      type: "gate",   x: -19, z: 0,  w: 8,  d: 8,  h: 16, gate: true },
 
   // ============ FRONT QUAD — ONE continuous medieval ring ============

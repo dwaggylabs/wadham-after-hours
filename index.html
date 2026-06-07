@@ -26,6 +26,16 @@
     75%{ filter:hue-rotate(310deg) saturate(2.2) contrast(1.1) blur(1.5px); }
     100%{ filter:hue-rotate(360deg) saturate(1.5) contrast(1.05) blur(0px); }
   }
+  /* the K-HOLE — Arran's third hit: ~a minute of dissociated chaos */
+  #view.khole{ animation: khole 2.4s ease-in-out infinite; }
+  @keyframes khole{
+    0%{   filter:hue-rotate(0deg)   saturate(3)   contrast(1.5) blur(2px) invert(0);    transform:rotate(0deg)  scale(1.12); }
+    20%{  filter:hue-rotate(150deg) saturate(4.5) contrast(1.7) blur(6px) invert(0.12); transform:rotate(4deg)   scale(1.22) translate(22px,-12px); }
+    40%{  filter:hue-rotate(290deg) saturate(6)   contrast(2)   blur(9px) invert(0.32); transform:rotate(-5deg)  scale(1.30) translate(-28px,10px); }
+    60%{  filter:hue-rotate(70deg)  saturate(4.5) contrast(1.7) blur(7px) invert(0.18); transform:rotate(6deg)   scale(1.18) translate(26px,14px); }
+    80%{  filter:hue-rotate(210deg) saturate(4)   contrast(1.8) blur(4px) invert(0.06); transform:rotate(-3deg)  scale(1.24) translate(-18px,-8px); }
+    100%{ filter:hue-rotate(360deg) saturate(3)   contrast(1.5) blur(2px) invert(0);    transform:rotate(0deg)  scale(1.12); }
+  }
   #view.elf{ animation: elf 1.4s ease-out; }
   @keyframes elf{ 0%{ filter:brightness(1.7) saturate(1.4) blur(2px); } 100%{ filter:none; } }
   /* the college drink — a woozy, blue-tinted spin */
