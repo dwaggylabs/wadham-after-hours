@@ -128,7 +128,7 @@ function initWorld() {
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.45;
+  renderer.toneMappingExposure = 1.6;
 
   scene = new THREE.Scene();
   const night = CONFIG.timeOfDay !== 'day';
@@ -247,8 +247,8 @@ function radialTex(hex) {
 }
 
 function buildLights(night) {
-  scene.add(new THREE.HemisphereLight(night ? 0x52628f : 0xbcd2f0, night ? 0x141824 : 0x6b6450, night ? 1.05 : 0.95));
-  scene.add(new THREE.AmbientLight(0x33405f, night ? 0.85 : 0.4));
+  scene.add(new THREE.HemisphereLight(night ? 0x5a6a98 : 0xbcd2f0, night ? 0x171c2a : 0x6b6450, night ? 1.2 : 1.0));
+  scene.add(new THREE.AmbientLight(0x39466a, night ? 1.0 : 0.45));
   const moon = new THREE.DirectionalLight(0xc2d4ff, night ? 0.95 : 0.9);
   moon.position.set(-80, 120, -120); scene.add(moon);
   const moon2 = new THREE.DirectionalLight(0x8a6a3a, night ? 0.35 : 0.2);   // warm fill from the quad
@@ -297,8 +297,9 @@ function buildLocation(L) {
 }
 
 function buildQuad(L) {
-  // grass lawn, inset from the surrounding ranges
-  addPatch(L.x, L.z, L.w - 6, L.d - 6, COL.lawn, 0.012);
+  // grass lawn, inset from the surrounding ranges (lifted if the quad is raised)
+  const by = floorYAt(L.x, L.z);
+  addPatch(L.x, L.z, L.w - 6, L.d - 6, COL.lawn, by + 0.012);
   if (L.ring) buildRing(L);                 // the Front Quad's continuous medieval ring
 }
 
@@ -331,6 +332,15 @@ function buildRing(L) {
   run(cS, 'x', ix0 - t, ix1 + t, sideGaps('s'));
   run(cW, 'z', iz0 - t, iz1 + t, sideGaps('w'));
   run(cE, 'z', iz0 - t, iz1 + t, sideGaps('e'));
+  // lintels over arched gaps → they read as a TUNNEL through the range, not a gap
+  gaps.filter((g) => g.arch).forEach((g) => {
+    const onX = g.side === 'n' || g.side === 's';
+    const fixed = g.side === 'n' ? cN : g.side === 's' ? cS : g.side === 'w' ? cW : cE;
+    const cx = onX ? g.at : fixed, cz = onX ? fixed : g.at;
+    const w = onX ? g.width + 0.6 : t + 0.4, d = onX ? t + 0.4 : g.width + 0.6;
+    const lin = new THREE.Mesh(new THREE.BoxGeometry(w, h - 4.4, d), stoneMat(COL.stoneDark));
+    lin.position.set(cx, 4.4 + (h - 4.4) / 2, cz); scene.add(lin);
+  });
 }
 
 function buildGarden(L) {
