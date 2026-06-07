@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, WALLS, LINTELS, STREET, TREES, POO } from './data.js';
+import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, WALLS, LINTELS, FURNITURE, STREET, TREES, POO } from './data.js';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (id) => document.getElementById(id);
@@ -164,6 +164,7 @@ function initWorld() {
   (FENCES || []).forEach(buildFence);
   (WALLS || []).forEach(buildWall);
   (LINTELS || []).forEach(buildLintel);
+  (FURNITURE || []).forEach(buildFurniture);
   buildStreet();
   commitInstances();
 
@@ -721,7 +722,7 @@ function buildRaised(L) {
   const plat = new THREE.Mesh(new THREE.BoxGeometry(L.w, top, L.d),
     new THREE.MeshLambertMaterial({ color: COL.stoneDark, flatShading: true }));
   plat.position.set(L.x, top / 2, L.z); scene.add(plat);       // visual mesa (no collider — floorY lifts you)
-  addPatch(L.x, L.z, L.w - 0.6, L.d - 0.6, COL.paving, top + 0.02);
+  addPatch(L.x, L.z, L.w - 0.6, L.d - 0.6, L.garden ? COL.lawn : COL.paving, top + 0.02);   // grass on a roof garden
   // a flight of steps on the chosen side (skipped when explicit STEPS are used)
   const side = L.steps || 'w';
   const N = side === 'none' ? 0 : 5;
@@ -818,6 +819,25 @@ function buildLintel(L) {
   const mat = L.glass ? new THREE.MeshLambertMaterial({ color: 0xbcc8d6, flatShading: true }) : stoneMat(COL.stoneDark);
   const m = new THREE.Mesh(new THREE.BoxGeometry(L.w, h, L.d), mat);
   m.position.set(L.x, (y0 + y1) / 2, L.z); scene.add(m);
+}
+
+/* FURNITURE — a café table + four chairs (the Back Quad's seating). Sits on the
+   floor (incl. raised platforms). A small collider for the table only. */
+function buildFurniture(f) {
+  const by = floorYAt(f.x, f.z), wood = stoneMat(0x6a4a2e);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.08, 12), wood);
+  top.position.set(f.x, by + 0.72, f.z); scene.add(top);
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.72, 8), wood);
+  leg.position.set(f.x, by + 0.36, f.z); scene.add(leg);
+  [[1.05, 0], [-1.05, 0], [0, 1.05], [0, -1.05]].forEach(([dx, dz]) => {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.5), wood);
+    seat.position.set(f.x + dx, by + 0.44, f.z + dz); scene.add(seat);
+    const cl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.44, 0.42), wood);
+    cl.position.set(f.x + dx, by + 0.22, f.z + dz); scene.add(cl);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.08), wood);
+    back.position.set(f.x + dx + (dx ? Math.sign(dx) * 0.21 : 0), by + 0.7, f.z + dz + (dz ? Math.sign(dz) * 0.21 : 0)); scene.add(back);
+  });
+  addCollider(f.x, f.z, 1.3, 1.3);
 }
 
 /* the player's floor height at (x,z): raised on a terrace, with a ramp on the
@@ -919,9 +939,10 @@ function commitInstances() {
     const fi = new THREE.InstancedMesh(fg, fmat, ctx.trees.length);
     const m = new THREE.Matrix4();
     ctx.trees.forEach((t, i) => {
-      m.compose(new THREE.Vector3(t.x, 1.2 * t.s, t.z), new THREE.Quaternion(), new THREE.Vector3(t.s, t.s, t.s));
+      const ty = t.y || 0;                          // lift trees onto a raised platform (roof garden)
+      m.compose(new THREE.Vector3(t.x, ty + 1.2 * t.s, t.z), new THREE.Quaternion(), new THREE.Vector3(t.s, t.s, t.s));
       ti.setMatrixAt(i, m);
-      m.compose(new THREE.Vector3(t.x, (2.4 + 1.4) * t.s, t.z),
+      m.compose(new THREE.Vector3(t.x, ty + (2.4 + 1.4) * t.s, t.z),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(0, i, 0)),
         new THREE.Vector3(t.s * 1.1, t.s * 1.3, t.s * 1.1));
       fi.setMatrixAt(i, m);
@@ -939,7 +960,9 @@ function commitLamps() {
     { x: -22, z: 6 }, { x: -22, z: -6 }, { x: -2, z: 8 },
     { x: -13, z: 30 }, { x: 13, z: 30 },                         // corners -> Back Quad
     { x: 40, z: 64 }, { x: 60, z: 64 },                          // passage to the Bar (S of AC)
-    { x: 30, z: 30 }, { x: 80, z: 44 },                          // terrace steps (NW + from bar)
+    { x: 8, z: 42 }, { x: 12, z: 56 }, { x: -4, z: 40 },         // Back Quad lighting
+    { x: 73, z: 70 }, { x: 85, z: 74 },                          // C-Day Lewis / SE
+    { x: 21, z: 29 },                                            // terrace steps (NW)
     { x: 13, z: -26 }, { x: 13, z: -40 },                        // north path into the gardens
     { x: -30, z: -66 }, { x: 13, z: -90 },                       // locked-garden gates
   ];

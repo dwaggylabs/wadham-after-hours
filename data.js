@@ -37,7 +37,7 @@ export const CONFIG = {
   startPosition: { x: -6, z: 0 },
   startFacing: "west",
 
-  friendsNeeded: 7,
+  friendsNeeded: 10,
 
   plushMusicUrl: "",
   plushMusicVolume: 0.55,
@@ -86,6 +86,12 @@ export const LOCATIONS = [
   // ============ BAR QUAD — GROUND level, nestled in the AC's L (surrounded by it) ====
   { id: "barquad", name: "Bar Quad", type: "quad", x: 53, z: 53, w: 28, d: 20 },   // x39..67, z43..63 — reached via the AC tunnel
 
+  // ---- A small BRICK building directly E of the AC, with a stair-gap (terrace→ground) ----
+  { id: "ac-east-n", name: "AC East Range", type: "modern", x: 69, z: 47, w: 4, d: 26, h: 13, brick: true }, // x67..71, z34..60
+  { id: "ac-east-s", name: "AC East Range", type: "modern", x: 78, z: 47, w: 4, d: 26, h: 13, brick: true }, // x76..80, z34..60 (gap x71..76 = the stair-slot)
+  // ---- C-Day Lewis Room — BRICK, in the SE corner (within the perimeter) ----
+  { id: "cday",      name: "C-Day Lewis Room", type: "modern", x: 75, z: 73, w: 14, d: 14, h: 13, brick: true }, // x68..82, z66..80
+
   // ============ GARDENS (north; lawns only — walls in WALLS) ============
   // fellows + cloister = one open L-shaped garden (N + E of the Front Quad).
   { id: "cloister",      name: "Cloister Garden",  type: "garden", x: 48, z: -4,  w: 48, d: 40 },  // east arm  x24..72, z-24..16 (lit, trees)
@@ -108,13 +114,19 @@ export const LOCATIONS = [
 export const RAISED = [
   { x: 60, z: 27, w: 70, d: 14, y: 2.4, steps: "none" },  // terrace arm N of the AC: x25..95, z20..34
   { x: 84, z: 2,  w: 20, d: 48, y: 2.4, steps: "none" },  // terrace arm up to the Library: x74..94, z-22..26
+  { x: 88, z: 50, w: 12, d: 34, y: 2.4, steps: "none" },  // terrace arm down the EAST to the C-Day Lewis area: x82..94, z33..67
+  { x: -7, z: 53, w: 14, d: 12, y: 2.4, steps: "none", garden: true },  // ROOF GARDEN, SW of the Back Quad: x-14..0, z47..59
 ];
 
 /* -----------------------------------------------------------------------------
-   STEPS — ramp onto the Library terrace.
+   STEPS — ramps onto the raised terrace(s).
 ----------------------------------------------------------------------------- */
 export const STEPS = [
-  { x: 27, z: 30, w: 8, d: 10, axis: "x", high: "e", y: 2.4 },  // Back Quad (NW of AC) up onto the terrace
+  { x: 21, z: 29, w: 8, d: 10, axis: "x", high: "e", y: 2.4 },  // Back Quad (W of AC) up onto the terrace (x17..25)
+  { x: 73.5, z: 38, w: 5, d: 8, axis: "z", high: "n", y: 2.4 }, // through the AC-east stair-gap: terrace → ground (x71..76, z34..42)
+  { x: 88, z: 64, w: 12, d: 8, axis: "z", high: "n", y: 2.4 },  // east terrace → ground at the C-Day Lewis Room
+  { x: -17, z: 53, w: 6, d: 8, axis: "x", high: "e", y: 2.4 },  // roof garden, west stair (x-20..-14)
+  { x: 3,  z: 53, w: 6, d: 8, axis: "x", high: "w", y: 2.4 },   // roof garden, east stair (symmetric) (x0..6)
 ];
 
 /* -----------------------------------------------------------------------------
@@ -129,9 +141,17 @@ export const LINTELS = [
    FENCES — impassable iron railings (collider + rail).
 ----------------------------------------------------------------------------- */
 export const FENCES = [
-  { x: 48, z: 20.5, w: 48, d: 1 },  // ON the terrace's north edge — seals the Cloister off from the terrace
-  { x: 75, z: -2,   w: 1,  d: 40 }, // ON the terrace's west edge up to the Library — cloister side
+  { x: 49, z: 20.5, w: 50, d: 1 },  // terrace's north edge (x24..74) — seals the Cloister off from the terrace
+  { x: 73, z: 10,   w: 1,  d: 22 }, // cloister SE east edge (z-1..21) — closes the terrace→cloister gap (meets the terrace fence)
+  { x: 75, z: -2,   w: 1,  d: 40 }, // terrace's west edge up to the Library — cloister side
   { x: 84, z: -16,  w: 22, d: 1 },  // Library north side (south-entry only)
+];
+
+/* -----------------------------------------------------------------------------
+   FURNITURE — café tables + chairs (the Back Quad's outdoor seating).
+----------------------------------------------------------------------------- */
+export const FURNITURE = [
+  { x: 8, z: 44 }, { x: 12, z: 54 }, { x: 6, z: 58 },
 ];
 
 /* -----------------------------------------------------------------------------
@@ -161,7 +181,7 @@ export const WALLS = [
   { x: -43,  z: -50,  w: 38, d: 1 },                 // south
   // Cloister garden (east arm) — N stub (east of fellows) + east wall joining the Library
   { x: 61,   z: -24,  w: 22, d: 1 },                 // north stub x50..72
-  { x: 73,   z: -4,   w: 1,  d: 40 },                // east wall x73, z-24..16 — joins the Library
+  { x: 73,   z: -12.5, w: 1, d: 23 },                // east wall x73, z-24..-1 — ends where the Library is (perimeter)
   // (cloister WEST at x24 = the Front Quad E range; cloister SOUTH = FENCE, above.)
 ];
 
@@ -181,7 +201,9 @@ export const STREET = {
    TREES
 ----------------------------------------------------------------------------- */
 export const TREES = [
-  { x:0, z:48, s:2.2, kind:"plane" },      // the great Back Quad plane tree
+  { x:9, z:46, s:2.0, kind:"plane" },      // the great Back Quad plane tree
+  { x:13, z:58, s:1.3 }, { x:4, z:40, s:1.1 },                           // more Back Quad trees
+  { x:-10, z:50, s:1.0, y:2.4 }, { x:-4, z:56, s:0.9, y:2.4 },           // roof-garden trees (on the raised platform)
   { x:48, z:-4, s:1.5 }, { x:40, z:6, s:1.3 }, { x:60, z:-14, s:1.4 },   // cloister (lit + trees)
   { x:10, z:-56, s:1.9 }, { x:-8, z:-72, s:1.5 }, { x:34, z:-44, s:1.5 }, { x:-14, z:-40, s:1.4 },
   { x:13, z:-106, s:1.7 }, { x:-8, z:-112, s:1.3 },
@@ -284,6 +306,18 @@ export const NPCS = [
     "Eleanor! Oh my god — have you seen Stubby? The pigeon. One leg, no fear, absolute menace of the Front Quad.",
     "He stole a whole panini off a finalist mid-collections, then stood ON the exam timetable like he owned it. There's a JCR motion to make him an honorary fellow. It's passing.",
     "I'm in for Tuesgays, obviously — but if Stubby's at the Lodge we're bringing him. He's seen things. He deserves a night out." ] },
+  { id:"maddie", name:"Maddie Petersen", at:"backquad", colour:"#c96a3a", hair:"#e0641f", role:"friend", lines:[
+    "Maddie! Human sciences — yes it's a real degree, no I can't fix your posture. I ran the ball with Rupert and we are, legally, no longer on speaking terms about the budget.",
+    "We sold twelve hundred tickets and I personally chased every refund. The committee group chat has forty thousand messages. I've read none since June.",
+    "Tuesgays? After running a ball a nightclub is basically a lie-down. I'm there. Tell Rupert he still owes me a drink AND an apology." ] },
+  { id:"esme", name:"Esme Brooke", at:"backquad", colour:"#5aa07a", hair:"#3a2a1a", role:"friend", lines:[
+    "Esme. Also human sciences — me and Maddie are a cult of two. I can explain your entire personality with one kinship diagram and a slightly mean look.",
+    "Wrote four thousand words on why your nan's gossip is technically ethnography. Got a first. The system is broken and I am thriving inside it.",
+    "Yeah I'm coming — let me just finish judging everyone in this quad anthropologically. …Done. It's grim. Let's go." ] },
+  { id:"louie", name:"Louie Wells", at:"frontquad", colour:"#4a6a9a", hair:"#2a1a0a", role:"friend", lines:[
+    "Louie. Law. Before you ask: no, I will not read your tenancy agreement at 11pm in a quad. …Fine. Send it tomorrow. NOT tonight.",
+    "Three thousand pages of reading a week and they call contract 'the fun one'. I have seen things in those footnotes I cannot un-see.",
+    "Tuesgays is now a binding verbal agreement. Get the drink, I'll admit it into evidence, see you on the floor." ] },
 
   // ===================== CAMEOS ========================
   { id:"rosamund", name:"Rosamund Pike", at:"frontquad", colour:"#9a7faa", hair:"#c9b27a", role:"flavour", lines:[
