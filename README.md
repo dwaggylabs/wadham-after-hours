@@ -2,12 +2,21 @@
 
 A tiny first-person walking-sim set in a stylised low-poly **Wadham College, Oxford**,
 at night. It's Tuesday, the gates are locked, and you're trying to escape college to
-make it to **Tuesgays** at Plush. Built with [Three.js](https://threejs.org/) via a CDN
-importmap — **no build step, no npm**. Just static files.
+make it to **Tuesgays** at Plush.
+
+## Password-protected build
+
+This published site is a **single, self-contained `index.html`** that has been
+encrypted with [StatiCrypt](https://github.com/robinmoisson/staticrypt). The file you
+see in the repo is genuine AES ciphertext — there is no readable game source here. On
+load it shows a password prompt; entering the correct passphrase decrypts the page in
+the browser and runs the game.
+
+The decrypted page bundles everything inline — the engine, all content, and Three.js —
+as a single classic `<script>`, so it runs standalone with no external modules, import
+map, or CDN fetches (which is also what lets it execute after StatiCrypt decrypts it).
 
 ## Play
-
-A friends-only passphrase guards the splash (set it in `data.js`). Then:
 
 | | Desktop | Touch |
 |---|---|---|
@@ -23,42 +32,14 @@ friends, grab the college drink, and get to Plush. Follow the blue beacon / comp
 
 ## Editing the content
 
-**You only ever edit `data.js`.** It holds, with comments:
-
-- `CONFIG` — title, subtitle, the **passphrase**, and where you start.
-- `LOCATIONS` — every building/quad/garden (centre `x,z`, size `w,d`, height `h`).
-  North is `-Z`, east is `+X`.
-- `ITEMS` — keys, Bod card, the college drink, Wren's curiosities.
-- `QUESTS` — the main escape, the Tuesgays win, and the side quests.
-- `NPCS` — historical figures and **your friends**: drop in real names, positions
-  (`at` = a location id) and anecdote lines. Friends (`role: "friend"`) must all be
-  talked to before the win.
-
-The engine (`game.js`) reads all of it; you shouldn't need to touch it.
-
-## Run locally
-
-ES modules + importmap need to be served over HTTP (not `file://`):
-
-```bash
-cd "Wadham Game"
-python3 -m http.server 8000
-# then open http://localhost:8000
-```
+The editable source (`game.js`, `data.js`, the unencrypted `index.html`) and the build
+tooling are kept **outside this public repo** so the content stays private. The build
+pipeline is: bundle `game.js` + `data.js` + Three.js into one inline-script
+`index.html` (esbuild, IIFE), then encrypt it with StatiCrypt and apply any
+post-processing before publishing.
 
 ## Deploy to GitHub Pages
 
-Repo root already has an empty `.nojekyll` so Pages serves the files as-is.
-
-```bash
-git init -b main
-git add -A
-git commit -m "Wadham After Hours"
-# create an EMPTY repo on github.com first (e.g. wadham-after-hours), then:
-git remote add origin https://github.com/<you>/<repo>.git
-git push -u origin main
-```
-
-Then on GitHub: **Settings → Pages → Build and deployment → Source: Deploy from a
-branch → `main` / `(root)` → Save.** Your game appears at
-`https://<you>.github.io/<repo>/` within a minute or two.
+Repo root has an empty `.nojekyll` so Pages serves the files as-is. Push to `main`;
+**Settings → Pages → Deploy from a branch → `main` / `(root)`** serves the game at
+`https://<you>.github.io/<repo>/`.
