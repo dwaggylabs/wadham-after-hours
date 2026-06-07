@@ -71,10 +71,7 @@ export const LOCATIONS = [
   { id: "hall",       name: "Hall",                type: "spot",   x: 16, z: 9 },
 
   // ============ BACK QUAD — directly SOUTH, fully enclosed ============
-  { id: "backquad",   name: "Back Quad",           type: "quad",   x: 0, z: 48, w: 32, d: 26 },   // lawn x-16..16, z35..61
-  { id: "bq-north",   name: "Back Quad (N range)",  type: "range",  x: 6, z: 35, w: 46, d: 3, h: 12, arches: [-13, 13] }, // x-17..29
-  { id: "bq-west",    name: "Back Quad (W brick range)", type: "range", x: -16, z: 48, w: 4, d: 26, h: 11, brick: true },
-  { id: "bq-south",   name: "Back Quad (S range)",  type: "range",  x: 6, z: 61, w: 46, d: 3, h: 11 }, // x-17..29
+  { id: "backquad",   name: "Back Quad",           type: "quad",   x: 0, z: 48, w: 32, d: 26 },   // open — bounded by the Front Quad (N), the AC (E) and the perimeter; NO buildings W of the AC
 
   // ---- AC / LSK — GLASS, two parts with an E–W ground TUNNEL between them ----
   // L-shape: a north arm + a west arm, with an E–W TUNNEL (z42..47) between them
@@ -83,11 +80,11 @@ export const LOCATIONS = [
   { id: "lsk", name: "LSK (west range)",  type: "modern", x: 34, z: 55, w: 10, d: 16, h: 13, glass: true }, // x29..39, z47..63 (west arm)
 
   // ============ RAISED TERRACE (~2.4 m) — Library + Bowra ============
-  { id: "library", name: "Ferdowsi Library", type: "modern", x: 84, z: -8, w: 20, d: 14, h: 14, raised: true, glass: true, tint: 0x6f4a2c }, // brown glass, N end
-  { id: "bowra",   name: "Bowra Building",   type: "modern", x: 99, z: 12, w: 10, d: 44, h: 16, raised: true, brick: true },                  // brick, east run
+  { id: "library", name: "Ferdowsi Library", type: "modern", x: 84, z: -8, w: 20, d: 14, h: 14, raised: true, glass: true, tint: 0x6f4a2c }, // brown glass, on the terrace
+  // (Bowra is the EAST perimeter range — see se-link below — not a separate building.)
 
-  // ============ BAR QUAD — raised; reached by stairs up (eastward) from the AC tunnel
-  { id: "barquad", name: "Bar Quad", type: "quad", x: 82, z: 49, w: 26, d: 30, raised: true },   // x69..95, z34..64
+  // ============ BAR QUAD — GROUND level, nestled in the AC's L (surrounded by it) ====
+  { id: "barquad", name: "Bar Quad", type: "quad", x: 53, z: 53, w: 28, d: 20 },   // x39..67, z43..63 — reached via the AC tunnel
 
   // ============ GARDENS (north; lawns only — walls in WALLS) ============
   // fellows + cloister = one open L-shaped garden (N + E of the Front Quad).
@@ -99,27 +96,33 @@ export const LOCATIONS = [
   // ============ PERIMETER ranges — enclose the college ============
   { id: "southrange", name: "Southern Range", type: "range", x: 37, z: 86, w: 122, d: 9, h: 12 }, // x-24..98
   { id: "sw-link",    name: "SW Range",       type: "range", x: -22, z: 55, w: 4, d: 66, h: 12 }, // x-24..-20, z22..88 — seals the west (only the gate gets you out W)
-  { id: "se-link",    name: "SE Range",       type: "range", x: 102, z: 40, w: 8, d: 96, h: 12 }, // x98..106, z-8..88 — seals the east
+  { id: "se-link",    name: "Bowra Building", type: "range", x: 100, z: 33, w: 12, d: 112, h: 16, brick: true }, // Bowra IS the east perimeter (x94..106, z-23..89; abuts the Library terrace, seals the NE)
 
   // ---------------- PLUSH (off-site, down Broad St & Cornmarket) ------------
   { id: "plush",      name: "PLUSH",               type: "goal",   x: -70, z: 28, w: 8, d: 8, h: 7, goal: true },
 ];
 
 /* -----------------------------------------------------------------------------
-   RAISED — terrace (Library + Bowra) + the raised Bar Quad. steps:"none" → STEPS.
+   RAISED — the Library terrace (steps:"none" → STEPS). The Bar is at GROUND now.
 ----------------------------------------------------------------------------- */
 export const RAISED = [
   { x: 60, z: 27, w: 70, d: 14, y: 2.4, steps: "none" },  // terrace arm N of the AC: x25..95, z20..34
   { x: 84, z: 2,  w: 20, d: 48, y: 2.4, steps: "none" },  // terrace arm up to the Library: x74..94, z-22..26
-  { x: 82, z: 49, w: 26, d: 30, y: 2.4, steps: "none" },  // raised Bar Quad: x69..95, z34..64 (abuts the terrace at z34)
 ];
 
 /* -----------------------------------------------------------------------------
-   STEPS — ramps onto the raised terrace / bar.
+   STEPS — ramp onto the Library terrace.
 ----------------------------------------------------------------------------- */
 export const STEPS = [
   { x: 27, z: 30, w: 8, d: 10, axis: "x", high: "e", y: 2.4 },  // Back Quad (NW of AC) up onto the terrace
-  { x: 66, z: 47, w: 8, d: 8,  axis: "x", high: "e", y: 2.4 },  // AC tunnel up (eastward) into the Bar Quad
+];
+
+/* -----------------------------------------------------------------------------
+   LINTELS — partial-height blocks (a roofed bridge/tunnel). Used to join the two
+   AC parts over the ground passage so they read as one building with a tunnel.
+----------------------------------------------------------------------------- */
+export const LINTELS = [
+  { x: 34, z: 44.5, w: 10, d: 5, y0: 4.5, y1: 13, glass: true },  // bridges AC (z42) ↔ LSK (z47) over the tunnel
 ];
 
 /* -----------------------------------------------------------------------------

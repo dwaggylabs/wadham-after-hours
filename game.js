@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, WALLS, STREET, TREES, POO } from './data.js';
+import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, WALLS, LINTELS, STREET, TREES, POO } from './data.js';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (id) => document.getElementById(id);
@@ -163,6 +163,7 @@ function initWorld() {
   LOCATIONS.forEach(buildLocation);
   (FENCES || []).forEach(buildFence);
   (WALLS || []).forEach(buildWall);
+  (LINTELS || []).forEach(buildLintel);
   buildStreet();
   commitInstances();
 
@@ -808,6 +809,15 @@ function addLockedWallGate(seg) {
   const collider = { minX: seg.x - seg.w / 2, maxX: seg.x + seg.w / 2, minZ: seg.z - seg.d / 2, maxZ: seg.z + seg.d / 2 };
   colliders.push(collider);
   lockedGates.push({ x: seg.x, z: seg.z, key: seg.key, name: seg.name || 'Garden', collider, mesh: grp, open: false });
+}
+
+/* a LINTEL — a partial-height block (a roofed bridge/tunnel), no collider, so you
+   walk underneath. Joins the two AC parts over the ground passage. */
+function buildLintel(L) {
+  const y0 = L.y0 || 4.5, y1 = L.y1 || 13, h = y1 - y0;
+  const mat = L.glass ? new THREE.MeshLambertMaterial({ color: 0xbcc8d6, flatShading: true }) : stoneMat(COL.stoneDark);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(L.w, h, L.d), mat);
+  m.position.set(L.x, (y0 + y1) / 2, L.z); scene.add(m);
 }
 
 /* the player's floor height at (x,z): raised on a terrace, with a ramp on the
