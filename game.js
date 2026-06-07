@@ -988,8 +988,9 @@ function spawnPickups() {
     const ang = n * 2.2, rad = 2 + n * 1.4;
     const spot = findOpenSpot(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad, 0.7);
     const mesh = CURIOSITY[it.id] ? curiosityMesh(it.id) : pickupMesh(it.id);
-    mesh.position.set(spot.x, 1.0, spot.z);
-    mesh.userData.base = 1.0;
+    const by = floorYAt(spot.x, spot.z) + 1.0;   // sit on the floor (incl. raised quads like the Bar)
+    mesh.position.set(spot.x, by, spot.z);
+    mesh.userData.base = by;
     scene.add(mesh);
     pickups.push({ item: it, mesh, taken: false });
   });

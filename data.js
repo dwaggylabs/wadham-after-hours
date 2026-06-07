@@ -63,9 +63,9 @@ export const LOCATIONS = [
   { id: "frontquad",  name: "Front Quad",          type: "quad",   x: 0, z: 0, w: 38, d: 38,
       ring: { t: 5, h: 13, gaps: [
         { side: "w", at: 0,   width: 7 },
-        { side: "s", at: -13, width: 6 },
-        { side: "s", at: 13,  width: 6 },
-        { side: "n", at: 13,  width: 6, arch: true },   // tunnel through the N range → gardens
+        { side: "s", at: -13, width: 6, arch: true },   // tunnel through the range → Back Quad
+        { side: "s", at: 13,  width: 6, arch: true },   // tunnel through the range → Back Quad
+        { side: "n", at: 13,  width: 6, arch: true },   // tunnel through the range → gardens
       ] } },
   { id: "chapel",     name: "Chapel & Old Library", type: "spot",  x: 16, z: -9 },
   { id: "hall",       name: "Hall",                type: "spot",   x: 16, z: 9 },
@@ -77,8 +77,10 @@ export const LOCATIONS = [
   { id: "bq-south",   name: "Back Quad (S range)",  type: "range",  x: 6, z: 61, w: 46, d: 3, h: 11 }, // x-17..29
 
   // ---- AC / LSK — GLASS, two parts with an E–W ground TUNNEL between them ----
-  { id: "ac",  name: "AC (north range)", type: "modern", x: 48, z: 38, w: 38, d: 8, h: 13, glass: true }, // x29..67, z34..42
-  { id: "lsk", name: "LSK (south range)", type: "modern", x: 48, z: 56, w: 38, d: 8, h: 13, glass: true }, // x29..67, z52..60  (tunnel = z42..52 between)
+  // L-shape: a north arm + a west arm, with an E–W TUNNEL (z42..47) between them
+  // where they join — that's the back-quad↔bar passage; the open SE lets you walk around it.
+  { id: "ac",  name: "AC (north range)", type: "modern", x: 48, z: 38, w: 38, d: 8,  h: 13, glass: true }, // x29..67, z34..42 (north arm)
+  { id: "lsk", name: "LSK (west range)",  type: "modern", x: 34, z: 55, w: 10, d: 16, h: 13, glass: true }, // x29..39, z47..63 (west arm)
 
   // ============ RAISED TERRACE (~2.4 m) — Library + Bowra ============
   { id: "library", name: "Ferdowsi Library", type: "modern", x: 84, z: -8, w: 20, d: 14, h: 14, raised: true, glass: true, tint: 0x6f4a2c }, // brown glass, N end
@@ -124,8 +126,9 @@ export const STEPS = [
    FENCES — impassable iron railings (collider + rail).
 ----------------------------------------------------------------------------- */
 export const FENCES = [
-  { x: 48, z: 16,  w: 48, d: 1 },   // seals the Cloister off from the terrace (south edge)
-  { x: 84, z: -16, w: 22, d: 1 },   // Library north side (so it's south-entry only)
+  { x: 48, z: 20.5, w: 48, d: 1 },  // ON the terrace's north edge — seals the Cloister off from the terrace
+  { x: 75, z: -2,   w: 1,  d: 40 }, // ON the terrace's west edge up to the Library — cloister side
+  { x: 84, z: -16,  w: 22, d: 1 },  // Library north side (south-entry only)
 ];
 
 /* -----------------------------------------------------------------------------
