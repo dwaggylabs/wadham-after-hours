@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STREET, TREES, POO } from './data.js';
+import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, STREET, TREES, POO } from './data.js';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (id) => document.getElementById(id);
@@ -56,6 +56,7 @@ const pickups = [];                   // {item, mesh, taken}
 const npcs = [];                      // {def, group, label, talked}
 const beacons = [];                   // objective beacon (one)
 const poos = [];                      // {x,z,stepped} Maggie Mae's leavings
+const lockedGates = [];               // {x,z,key,name,collider,mesh,open} locked garden gates
 
 // player state
 const state = {
@@ -76,7 +77,7 @@ let running = true;                   // master run flag (false while a menu is 
 let started = false;
 
 const PLAYER = { h: 1.7, r: 0.55, speed: 5.4, run: 8.6, reach: 3.4 };
-const BOUNDARY = { minX: -90, maxX: 104, minZ: -100, maxZ: 60 };
+const BOUNDARY = { minX: -95, maxX: 112, minZ: -152, maxZ: 118 };
 const fx = { ket: 0, elf: 0, poo: 0, drunk: 0, choir: 0, floorY: 1.7 };   // effect timers / state
 
 /* ============================================================================
@@ -158,7 +159,9 @@ function initWorld() {
   LOCATIONS.forEach((L) => { if (L.gate) PASSAGES.push(gatePassageRect(L)); });
 
   (RAISED || []).forEach(buildRaised);
+  (STEPS || []).forEach(buildStep);
   LOCATIONS.forEach(buildLocation);
+  (FENCES || []).forEach(buildFence);
   buildStreet();
   commitInstances();
 
@@ -174,7 +177,7 @@ function initWorld() {
 
   // QA hook — only active if you load index.html#debug. Lets a test harness
   // orbit the camera to inspect the world. Never touched during normal play.
-  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, drinkUp, nearestInteractable };
+  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, lockedGates, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, drinkUp, nearestInteractable, updateLockedGates };
 }
 
 const ctx = {};   // scratch buffers for instancing
@@ -261,11 +264,13 @@ function buildGround() {
 
   // gravel path spines (the Plush street is built separately in buildStreet)
   addPatch(-11, 0, 22, 4, COL.gravel, 0.01);         // gate -> front quad
-  addPatch(-15, 26, 5, 12, COL.gravel, 0.01);        // SW arch -> back quad
-  addPatch(15, 26, 5, 12, COL.gravel, 0.01);         // SE arch -> back quad
-  addPatch(15, -33, 5, 20, COL.gravel, 0.01);        // NE arch -> gardens
-  addPatch(8, -31, 26, 4, COL.gravel, 0.01);         // garden entrance run
-  addPatch(31, 48, 18, 5, COL.gravel, 0.01);         // back quad -> bar quad (undercroft)
+  addPatch(21, 15, 10, 5, COL.gravel, 0.01);         // slype out of the Front Quad (SE)
+  addPatch(34, 28, 30, 7, COL.gravel, 0.01);         // front quad -> back quad run
+  addPatch(47, 36, 6, 16, COL.gravel, 0.01);         // into the Back Quad (N opening)
+  addPatch(13, -32, 6, 24, COL.gravel, 0.01);        // NE arch -> gardens
+  addPatch(28, -45, 40, 6, COL.gravel, 0.01);        // garden run toward the Fellows' Garden
+  addPatch(70, 53, 14, 26, COL.gravel, 0.01);        // back quad -> terrace steps
+  addPatch(84, 89, 8, 16, COL.gravel, 0.01);         // terrace steps down -> bar quad
 }
 
 function addPatch(x, z, w, d, color, y = 0.01) {
@@ -338,6 +343,32 @@ function buildGardenWalls(L) {
   run(z1, 'x', x0, x1, sideGates('s'));   // south wall
   run(x0, 'z', z0, z1, sideGates('w'));   // west wall (runs in Z)
   run(x1, 'z', z0, z1, sideGates('e'));   // east wall
+  // LOCKED gates: drop an iron barrier across the gap until you hold the key
+  gates.filter((g) => g.locked).forEach((g) => addLockedGate(L, g, { x0, x1, z0, z1 }));
+}
+
+/* A locked garden gate: a wrought-iron leaf + a blocking collider across the
+   gap, registered so updateLockedGates() can open it when you have the key. */
+function addLockedGate(L, g, b) {
+  const T = 0.6, H = 2.7, w = g.width;
+  let cx, cz, gw, gd;
+  if (g.side === 'n' || g.side === 's') { cx = g.at; cz = g.side === 'n' ? b.z0 : b.z1; gw = w; gd = T; }
+  else { cz = g.at; cx = g.side === 'w' ? b.x0 : b.x1; gw = T; gd = w; }
+  const grp = new THREE.Group();
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(gw, H, gd),
+    new THREE.MeshLambertMaterial({ color: 0x20242e, flatShading: true }));
+  leaf.position.set(cx, H / 2, cz); grp.add(leaf);
+  const along = gw >= gd ? 'x' : 'z', n = Math.max(2, Math.round(w / 0.8));
+  for (let i = 0; i <= n; i++) {                    // vertical bars
+    const t = i / n - 0.5;
+    const bx = cx + (along === 'x' ? t * gw : 0), bz = cz + (along === 'z' ? t * gd : 0);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, H, 6), stoneMat(0x474d5a));
+    bar.position.set(bx, H / 2, bz); grp.add(bar);
+  }
+  scene.add(grp);
+  const collider = { minX: cx - gw / 2, maxX: cx + gw / 2, minZ: cz - gd / 2, maxZ: cz + gd / 2 };
+  colliders.push(collider);
+  lockedGates.push({ x: cx, z: cz, key: g.key, name: L.name, collider, mesh: grp, open: false });
 }
 
 /* --- a RANGE: a stone building block, with optional carved passages ------ */
@@ -601,21 +632,24 @@ function buildPlush(L) {
 /* --- modern buildings: pale ashlar + big glass (AC, Library, Bowra) ------ */
 function buildModern(L) {
   const baseY = raisedBase(L), h = L.h || 12;
+  // GLASS blocks (AC/LSK) read brighter & cooler than the stone ranges
+  const glass = !!L.glass;
   const m = new THREE.Mesh(new THREE.BoxGeometry(L.w, h, L.d),
-    new THREE.MeshLambertMaterial({ color: 0x9a958a, flatShading: true }));
+    new THREE.MeshLambertMaterial({ color: glass ? 0xbcc8d6 : 0x9a958a, flatShading: true }));
   m.position.set(L.x, baseY + h / 2, L.z); scene.add(m);
   addCollider(L.x, L.z, L.w, L.d);
   // big cool glass panels on the long faces
   const along = L.w >= L.d ? 'x' : 'z';
   const cols = Math.max(2, Math.floor((along === 'x' ? L.w : L.d) / 3));
   const off = (along === 'x' ? L.d : L.w) / 2 + 0.05;
-  const glassMat = new THREE.MeshBasicMaterial({ color: 0x213348, toneMapped: false });
-  const litMat = new THREE.MeshBasicMaterial({ color: 0xbfe0ff, toneMapped: false });
+  const glassMat = new THREE.MeshBasicMaterial({ color: glass ? 0x4a6f93 : 0x213348, toneMapped: false });
+  const litMat = new THREE.MeshBasicMaterial({ color: glass ? 0xd6ecff : 0xbfe0ff, toneMapped: false });
+  const litP = glass ? 0.55 : 0.4;
   for (let s = -1; s <= 1; s += 2)
     for (let r = 0; r < Math.max(2, Math.round(h / 3.5)); r++)
       for (let c = 0; c < cols; c++) {
         const t = (c / (cols - 1) - 0.5) * 2 * ((along === 'x' ? L.w : L.d) / 2 - 1.2);
-        const pane = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 2.2), rng() < 0.4 ? litMat : glassMat);
+        const pane = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 2.2), rng() < litP ? litMat : glassMat);
         const px = along === 'x' ? L.x + t : L.x + s * off;
         const pz = along === 'z' ? L.z + t : L.z + s * off;
         pane.position.set(px, baseY + 2 + r * 3.2, pz);
@@ -638,9 +672,9 @@ function buildRaised(L) {
     new THREE.MeshLambertMaterial({ color: COL.stoneDark, flatShading: true }));
   plat.position.set(L.x, top / 2, L.z); scene.add(plat);       // visual mesa (no collider — floorY lifts you)
   addPatch(L.x, L.z, L.w - 0.6, L.d - 0.6, COL.paving, top + 0.02);
-  // a flight of steps on the chosen side
+  // a flight of steps on the chosen side (skipped when explicit STEPS are used)
   const side = L.steps || 'w';
-  const N = 5;
+  const N = side === 'none' ? 0 : 5;
   for (let i = 0; i < N; i++) {
     const sy = top * (i + 1) / N;
     let sx = L.x, sz = L.z, sw = L.w, sd = 4;
@@ -652,6 +686,44 @@ function buildRaised(L) {
     st.position.set(sx, sy / 2, sz); scene.add(st);
   }
   for (let i = 0; i < 4; i++) ctx.lamps.push({ x: L.x - L.w / 2 + 4 + i * (L.w - 8) / 3, z: L.z + L.d / 2 - 2 });
+}
+
+/* an explicit flight of steps (STEPS): visible treads rising toward the high
+   end. No colliders — floorYAt() ramps the player up/down across the footprint. */
+function buildStep(s) {
+  const x0 = s.x - s.w / 2, x1 = s.x + s.w / 2, z0 = s.z - s.d / 2, z1 = s.z + s.d / 2;
+  const N = 5, top = s.y || 2.4;
+  for (let i = 0; i < N; i++) {
+    const h = top * (i + 1) / N;                 // tread height grows toward the high end
+    let cx, cz, w, d;
+    if (s.axis === 'x') {
+      const span = (x1 - x0) / N, e = s.high === 'e' ? x0 + i * span : x1 - (i + 1) * span;
+      cx = e + span / 2; cz = s.z; w = span + 0.02; d = s.d;
+    } else {
+      const span = (z1 - z0) / N, e = s.high === 'n' ? z1 - (i + 1) * span : z0 + i * span;
+      cx = s.x; cz = e + span / 2; w = s.w; d = span + 0.02;
+    }
+    const st = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), stoneMat(COL.paving));
+    st.position.set(cx, h / 2, cz); scene.add(st);
+  }
+}
+
+/* an impassable iron fence (FENCES): a low rail + posts, sitting on whatever
+   floor height it's at (e.g. the raised terrace edge), with a blocking collider */
+function buildFence(f) {
+  const baseY = floorYAt(f.x, f.z);
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(f.w, 1.2, f.d),
+    new THREE.MeshLambertMaterial({ color: 0x23262f, flatShading: true }));
+  rail.position.set(f.x, baseY + 0.65, f.z); scene.add(rail);
+  addCollider(f.x, f.z, f.w, f.d);
+  const along = f.w >= f.d ? 'x' : 'z', len = along === 'x' ? f.w : f.d;
+  const n = Math.max(2, Math.round(len / 2.5));
+  for (let i = 0; i <= n; i++) {
+    const t = i / n - 0.5;
+    const px = f.x + (along === 'x' ? t * f.w : 0), pz = f.z + (along === 'z' ? t * f.d : 0);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.5, 6), stoneMat(0x14161c));
+    post.position.set(px, floorYAt(px, pz) + 0.75, pz); scene.add(post);
+  }
 }
 
 /* the player's floor height at (x,z): raised on a terrace, with a ramp on the
@@ -672,6 +744,15 @@ function floorYAt(x, z) {
       y = Math.max(y, r.y * (1 - (r.z - r.d / 2 - z) / ramp));
     if (r.steps === 's' && inX && z >= r.z + r.d / 2 && z < r.z + r.d / 2 + ramp)
       y = Math.max(y, r.y * (1 - (z - (r.z + r.d / 2)) / ramp));
+  }
+  // explicit STEP flights: ramp the floor across the footprint toward the high end
+  for (const s of STEPS || []) {
+    const x0 = s.x - s.w / 2, x1 = s.x + s.w / 2, z0 = s.z - s.d / 2, z1 = s.z + s.d / 2;
+    if (x < x0 || x > x1 || z < z0 || z > z1) continue;   // inclusive so the ramp meets the terrace edge
+    const f = s.axis === 'x'
+      ? (s.high === 'e' ? (x - x0) / (x1 - x0) : (x1 - x) / (x1 - x0))
+      : (s.high === 'n' ? (z1 - z) / (z1 - z0) : (z - z0) / (z1 - z0));
+    y = Math.max(y, (s.y || 2.4) * clamp(f, 0, 1));
   }
   return y;
 }
@@ -761,9 +842,11 @@ function commitInstances() {
 function commitLamps() {
   // also line the main paths with lamps
   const extra = [
-    { x: -22, z: 6 }, { x: -22, z: -6 }, { x: -14, z: 8 }, { x: -2, z: 8 },
-    { x: 0, z: 16 }, { x: 0, z: 30 }, { x: 14, z: -10 }, { x: 14, z: -26 },
-    { x: 18, z: 44 }, { x: -16, z: -56 }, { x: 28, z: -56 },
+    { x: -22, z: 6 }, { x: -22, z: -6 }, { x: -2, z: 8 },
+    { x: 21, z: 15 }, { x: 37, z: 28 }, { x: 50, z: 40 },        // slype run to the Back Quad
+    { x: 70, z: 46 }, { x: 70, z: 60 }, { x: 84, z: 86 },        // terrace steps up & down
+    { x: 13, z: -28 }, { x: 30, z: -46 },                        // NE arch -> Fellows' Garden
+    { x: -20, z: -64 }, { x: 35, z: -116 },                      // locked-garden gates
   ];
   const lamps = ctx.lamps.concat(extra);
   if (!lamps.length) return;
@@ -1202,6 +1285,26 @@ function openGate() {
   beep('gate');
 }
 
+/* Locked garden gates: walk up holding the matching key and it swings open;
+   without it, a throttled nudge tells you which key you need. */
+let _lockToastT = -99;
+function updateLockedGates(t) {
+  for (const lg of lockedGates) {
+    if (lg.open) continue;
+    if (Math.hypot(camera.position.x - lg.x, camera.position.z - lg.z) > 3.2) continue;
+    if (state.inventory.has(lg.key)) {
+      lg.open = true;
+      const i = colliders.indexOf(lg.collider); if (i >= 0) colliders.splice(i, 1);
+      if (lg.mesh) lg.mesh.visible = false;
+      beep('gate'); toast(`Unlocked: ${lg.name}.`);
+    } else if (t - _lockToastT > 4.5) {
+      _lockToastT = t;
+      const it = item(lg.key);
+      toast(`${lg.name} gate is locked — find the ${it ? it.name : 'key'}.`);
+    }
+  }
+}
+
 /* re-evaluate quest-driven world state */
 function evaluateQuests() {
   // mark side quests active once their giver has been met is handled in dialogue.
@@ -1626,7 +1729,7 @@ function tick() {
   applyFx(dt);
   if (SND.started) { sndChoirNear(); sndPlushNear(); }
 
-  if (running) { updateCompass(); updatePrompt(); checkWin(); updateArea(); }
+  if (running) { updateCompass(); updatePrompt(); checkWin(); updateArea(); updateLockedGates(t); }
 
   renderer.render(scene, camera);
 }
