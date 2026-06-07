@@ -35,7 +35,7 @@ const facingToYaw = (f) =>
 
 /* ------------------------------------------------------------------ palette */
 const COL = {
-  stone: 0xb89a5e, stoneDark: 0x8a7144, roof: 0x474a55, crenel: 0x9c8350,
+  stone: 0xb89a5e, stoneDark: 0x8a7144, roof: 0x474a55, crenel: 0x9c8350, brick: 0x7c4636,
   lawn: 0x16361f, lawnEdge: 0x12301b, gravel: 0x5b5247, paving: 0x6c6358,
   hedge: 0x16331c, trunk: 0x4a3826, foliage: 0x1c4226, foliage2: 0x244e2c,
   winLit: 0xffd49a, winDark: 0x223049, lamp: 0xffb45a, neon: 0xff4fd8,
@@ -128,7 +128,7 @@ function initWorld() {
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.28;
+  renderer.toneMappingExposure = 1.45;
 
   scene = new THREE.Scene();
   const night = CONFIG.timeOfDay !== 'day';
@@ -177,7 +177,7 @@ function initWorld() {
 
   // QA hook — only active if you load index.html#debug. Lets a test harness
   // orbit the camera to inspect the world. Never touched during normal play.
-  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, lockedGates, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, drinkUp, nearestInteractable, updateLockedGates };
+  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, lockedGates, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, drinkUp, nearestInteractable, updateLockedGates, updateVillain };
 }
 
 const ctx = {};   // scratch buffers for instancing
@@ -246,8 +246,8 @@ function radialTex(hex) {
 }
 
 function buildLights(night) {
-  scene.add(new THREE.HemisphereLight(night ? 0x4a5a86 : 0xbcd2f0, night ? 0x10131c : 0x6b6450, night ? 0.85 : 0.9));
-  scene.add(new THREE.AmbientLight(0x2a3656, night ? 0.65 : 0.35));
+  scene.add(new THREE.HemisphereLight(night ? 0x52628f : 0xbcd2f0, night ? 0x141824 : 0x6b6450, night ? 1.05 : 0.95));
+  scene.add(new THREE.AmbientLight(0x33405f, night ? 0.85 : 0.4));
   const moon = new THREE.DirectionalLight(0xc2d4ff, night ? 0.95 : 0.9);
   moon.position.set(-80, 120, -120); scene.add(moon);
   const moon2 = new THREE.DirectionalLight(0x8a6a3a, night ? 0.35 : 0.2);   // warm fill from the quad
@@ -291,12 +291,45 @@ function buildLocation(L) {
     case 'modern': buildModern(L); break;
     case 'marker': buildMarker(L); break;
     case 'goal':   buildPlush(L); break;
+    case 'spot':   break;                 // invisible anchor (NPC/quest position only)
   }
 }
 
 function buildQuad(L) {
   // grass lawn, inset from the surrounding ranges
   addPatch(L.x, L.z, L.w - 6, L.d - 6, COL.lawn, 0.012);
+  if (L.ring) buildRing(L);                 // the Front Quad's continuous medieval ring
+}
+
+/* The Front Quad as ONE continuous medieval quadrangle: a closed crenellated
+   ring of ranges (tall mullioned windows, battlements) around the courtyard,
+   with gaps for the gate, the south corners and the garden opening. */
+function buildRing(L) {
+  const r = L.ring, t = r.t || 5, h = r.h || 13;
+  const ix0 = L.x - L.w / 2, ix1 = L.x + L.w / 2, iz0 = L.z - L.d / 2, iz1 = L.z + L.d / 2; // courtyard edges
+  const gaps = r.gaps || [];
+  const sideGaps = (s) => gaps.filter((g) => g.side === s);
+  // one crenellated, mullioned wall-run along an axis, leaving the gaps
+  const run = (fixed, axis, a, b, sg) => {
+    const cuts = [a];
+    sg.forEach((g) => cuts.push(g.at - g.width / 2, g.at + g.width / 2));
+    cuts.push(b); cuts.sort((p, q) => p - q);
+    for (let i = 0; i < cuts.length - 1; i += 2) {
+      const s = cuts[i], e = cuts[i + 1]; if (e - s < 0.4) continue;
+      const cx = axis === 'x' ? (s + e) / 2 : fixed;
+      const cz = axis === 'z' ? (s + e) / 2 : fixed;
+      const w = axis === 'x' ? e - s : t;
+      const d = axis === 'z' ? e - s : t;
+      addBlock(cx, cz, w, d, h, COL.stone, { windows: true, floors: 3, wstyle: 'hall', crenel: true });
+    }
+  };
+  // centrelines just outside the courtyard; N/S span the full outer width so
+  // the corners are solid → one continuous ring (not separate blocks).
+  const cN = iz0 - t / 2, cS = iz1 + t / 2, cW = ix0 - t / 2, cE = ix1 + t / 2;
+  run(cN, 'x', ix0 - t, ix1 + t, sideGaps('n'));
+  run(cS, 'x', ix0 - t, ix1 + t, sideGaps('s'));
+  run(cW, 'z', iz0 - t, iz1 + t, sideGaps('w'));
+  run(cE, 'z', iz0 - t, iz1 + t, sideGaps('e'));
 }
 
 function buildGarden(L) {
@@ -403,7 +436,7 @@ function buildRange(L) {
     const cz = along === 'z' ? L.z + segC : L.z;
     const w = along === 'x' ? segLen : L.w;
     const d = along === 'z' ? segLen : L.d;
-    addBlock(cx, cz, w, d, h, COL.stone, { windows: true, floors: Math.max(2, Math.round(h / 4)), parapet: true, baseY, wstyle: L.style });
+    addBlock(cx, cz, w, d, h, L.brick ? COL.brick : COL.stone, { windows: true, floors: Math.max(2, Math.round(h / 4)), parapet: true, baseY, wstyle: L.style });
   }
 
   // lintels above this range's own archways (so they read as arches, not gaps)
@@ -633,11 +666,16 @@ function buildPlush(L) {
 function buildModern(L) {
   const baseY = raisedBase(L), h = L.h || 12;
   // GLASS blocks (AC/LSK) read brighter & cooler than the stone ranges
-  const glass = !!L.glass;
+  const glass = !!L.glass, brick = !!L.brick;
   const m = new THREE.Mesh(new THREE.BoxGeometry(L.w, h, L.d),
-    new THREE.MeshLambertMaterial({ color: glass ? 0xbcc8d6 : 0x9a958a, flatShading: true }));
+    new THREE.MeshLambertMaterial({ color: glass ? 0xbcc8d6 : brick ? COL.brick : 0x9a958a, flatShading: true }));
   m.position.set(L.x, baseY + h / 2, L.z); scene.add(m);
   addCollider(L.x, L.z, L.w, L.d);
+  if (brick) {                              // Bowra: a solid brick block — ordinary windows + parapet, no glass curtain
+    addWindows(L.x, L.z, L.w, L.d, h, Math.max(2, Math.round(h / 4)), baseY);
+    addParapet(L.x, L.z, L.w, L.d, baseY + h);
+    return;
+  }
   // big cool glass panels on the long faces
   const along = L.w >= L.d ? 'x' : 'z';
   const cols = Math.max(2, Math.floor((along === 'x' ? L.w : L.d) / 3));
@@ -1012,10 +1050,11 @@ function npcFigure(def) {
     });
   }
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: radialTex('#ffffff'), color: col, transparent: true, opacity: 0.4,
+    map: radialTex('#ffffff'), color: def.villain ? 0xff2d2d : col, transparent: true, opacity: def.villain ? 0.6 : 0.4,
     blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-  glow.scale.set(3.0, 3.0, 1); glow.position.y = 1.1; g.add(glow);
+  glow.scale.set(def.villain ? 4.4 : 3.0, def.villain ? 4.4 : 3.0, 1); glow.position.y = 1.1; g.add(glow);
   g.userData.body = body; g.userData.head = head;
+  if (def.villain) g.scale.set(1.18, 1.28, 1.18);     // a little taller and more menacing
   return g;
 }
 
@@ -1142,9 +1181,36 @@ function runAction(action, n) {
     case 'singer': break;   // Finn's singing is ambient (see the audio section)
   }
 }
-function ketamine() { fx.ket = 26; beep('gate'); toast("You take the bump. The edges of Wadham begin to… breathe."); }
+function ketamine(sec = 26, msg) { fx.ket = sec; beep('gate'); toast(msg || "You take the bump. The edges of Wadham begin to… breathe."); }
 function elfPuff() { fx.elf = 5; beep('talk'); toast("Watermelon ice fills your lungs. You feel briefly, chemically, fine."); }
 function drinkUp() { fx.drunk = 24; beep('friend'); toast("You neck the college drink — sticky, blue, structurally unsound. The quad begins to gently spin."); }
+
+/* ---- Arran, the villain: a slow map-wide stalker. On CLOSE contact he forces
+   a ketamine bump (the existing impairment) then backs off; never fires at range. */
+function updateVillain(dt) {
+  const v = npcs.find((n) => n.def.villain); if (!v) return;
+  const dx = camera.position.x - v.baseX, dz = camera.position.z - v.baseZ;
+  const dist = Math.hypot(dx, dz) || 1;
+  v.retreat = Math.max(0, (v.retreat || 0) - dt);
+  v.cooldown = Math.max(0, (v.cooldown || 0) - dt);
+  // close-contact bump — only at very short range
+  if (v.retreat <= 0 && v.cooldown <= 0 && dist < 2.3) {
+    ketamine(6, "Arran corners you and forces a bump — the quad smears, tilts and slows to a woozy crawl.");
+    v.retreat = 3.0; v.cooldown = 13;            // back off, then a grace period
+  }
+  const chasing = v.retreat <= 0, sign = chasing ? 1 : -1;
+  const speed = chasing ? 1.95 : 5.2;            // slow stalk; a quicker scuttle away after a hit
+  let nx = v.baseX + sign * (dx / dist) * speed * dt;
+  let nz = v.baseZ + sign * (dz / dist) * speed * dt;
+  if (collidesAt(nx, v.baseZ, 0.5)) nx = v.baseX;   // simple wall-slide so he doesn't jam
+  if (collidesAt(v.baseX, nz, 0.5)) nz = v.baseZ;
+  nx = clamp(nx, BOUNDARY.minX + 1, BOUNDARY.maxX - 1);
+  nz = clamp(nz, BOUNDARY.minZ + 1, BOUNDARY.maxZ - 1);
+  v.baseX = nx; v.baseZ = nz;
+  v.by = floorYAt(nx, nz);
+  v.group.position.set(nx, v.by, nz);
+  v.label.position.set(nx, v.by + 2.5, nz);
+}
 
 /* drive the screen-effect overlays from the fx timers (CSS does the visuals) */
 function applyFx(dt) {
@@ -1695,6 +1761,7 @@ function tick() {
   const t = performance.now() * 0.001;
 
   if (running && !dialogue.open) updatePlayer(dt);
+  if (running && !dialogue.open) updateVillain(dt);     // Arran prowls
 
   // touch look applies each frame
   if (isTouch) camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');

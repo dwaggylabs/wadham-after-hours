@@ -5,18 +5,24 @@
    The engine (game.js) reads everything from here.
 
    COORDINATES (top-down):  +X = EAST,  -X = WEST,  +Z = SOUTH,  -Z = NORTH.
-   Front Quad is centred on (0,0). Layout re-derived from Ordnance Survey +
-   OpenStreetMap footprints, then simplified:
-       Parks Road runs N–S on the WEST. You enter the Front Quad from the west.
-       The Hall, Old Library & Chapel form the EAST range, projecting east.
-       BACK QUAD sits to the EAST/SOUTH-EAST, an open lawn walled on every side:
-         W & S by the glass AC/LSK building (an L), E by the Bowra Building.
-       LIBRARY + BOWRA stand on the only RAISED terrace (~2.4 m), reached by
-         steps; an iron FENCE on the terrace's west edge stops you dropping into
-         the Cloister Garden below. Steps drop south off the terrace to the Bar.
-       GARDENS are walled rooms to the NORTH; the Warden's Garden and the
-         Fellows' Private Garden are LOCKED (need keys you must find).
-       Holywell S. Plush off-site, W down Broad St then left down Cornmarket.
+   Front Quad is centred on (0,0). Simplified, enclosed campus:
+       FRONT QUAD — one continuous medieval ring (crenellated, gate tower W,
+         tall mullioned windows) around the open ~38×38 courtyard. chapel & hall
+         are anchor "spots" on the ring, not separate blocks.
+       BACK QUAD — directly SOUTH of Front Quad, an open court enclosed N (Front
+         Quad's south range), W (a brick range), S (the south range) and E (the
+         glass AC/LSK). Leave the Front Quad by its SE/SW corners, walk south.
+       AC/LSK — glass (the ONLY glass building), EAST of Back Quad.
+       RAISED TERRACE (~2.4 m) — sits NORTH of the AC/LSK and wraps east then
+         north to the Library. The ONLY way east of the Back Quad is up onto it
+         (steps up on the AC side, steps down into the Bar). BOWRA is brick, on
+         the terrace's east run; the LIBRARY is at the north end, enterable only
+         from the south — a fence seals its west/garden side.
+       GARDENS — aligned, contiguous, walled on the outer edge, to the NORTH.
+         cloister opens straight into fellowsgarden; warden's & private gardens
+         are LOCKED sub-rooms (found keys).
+       A continuous SOUTHERN range + SW/SE links enclose the whole college.
+       Holywell SW. Plush off-site, W down Broad St then left down Cornmarket.
 ============================================================================= */
 
 export const CONFIG = {
@@ -44,107 +50,116 @@ export const CONFIG = {
 /* -----------------------------------------------------------------------------
    LOCATIONS
    type: "quad" | "garden" | "range" | "marker" | "modern" | "gate" | "goal"
+         | "spot" (invisible anchor point for NPCs/quests)
    x,z = centre; w = width(X), d = depth(Z); h = height.
    Optional: archway+archOffset (one passage), arches:[..] (several), gate:true,
              walled:true + gates:[{side,at,width}] (gardens; add locked:true +
-             key:"key_id" for a locked gate), raised:true, glass:true (bright
-             glazed modern block), style:"hall"|"chapel", cupola:true.
+             key:"key_id" for a locked gate), raised:true, glass:true (only the
+             AC/LSK), brick:true (reddish range/block), cupola:true,
+             ring:{t,h,gaps:[{side,at,width}]} (the Front Quad medieval ring).
 ----------------------------------------------------------------------------- */
 export const LOCATIONS = [
   // ---------------- APPROACH (west, off Parks Road) ----------------
   { id: "forecourt",  name: "Forecourt",          type: "garden", x: -36, z: 0,  w: 20, d: 30 },
-  { id: "gatetower",  name: "Porters' Lodge",      type: "gate",   x: -19, z: 0,  w: 8,  d: 8,  h: 15, gate: true },
+  { id: "gatetower",  name: "Porters' Lodge",      type: "gate",   x: -19, z: 0,  w: 8,  d: 8,  h: 16, gate: true },
 
-  // ============ FRONT QUAD (historic, on Parks Road — WEST) ============
-  // One continuous closed ring of ~4 m ranges around an open ~38×38 courtyard.
-  // Gate/Lodge on the W; Warden's Lodgings N; SCR S; the Hall + Frontispiece +
-  // Chapel/Old Library form the EAST range, projecting east toward Back Quad.
-  { id: "frontquad",  name: "Front Quad",          type: "quad",   x: 0,  z: 0,   w: 38, d: 38 },
-  { id: "westrange",  name: "West Range",          type: "range",  x: -19, z: 0,  w: 4,  d: 42, h: 12 },
-  { id: "northrange", name: "Warden's Lodgings",   type: "range",  x: 0,  z: -19, w: 42, d: 4,  h: 12, archway: true, archOffset: 13 }, // NE corner → gardens
-  { id: "southrange", name: "SCR & South Range",   type: "range",  x: 0,  z: 19,  w: 42, d: 4,  h: 12, arches: [-13] },                 // SW corner → Holywell
-  { id: "chapel",     name: "Chapel & Old Library", type: "range", x: 19, z: -10, w: 5,  d: 18, h: 17, style: "chapel" },               // z -19..-1; closes NE corner
-  { id: "frontispiece",name:"The Frontispiece",    type: "marker", x: 16, z: 1,   w: 4,  d: 4,  h: 18 },
-  { id: "hall",       name: "Hall",                type: "range",  x: 19, z: 7,   w: 5,  d: 12, h: 15, style: "hall", cupola: true },    // z 1..13; gap z13..17 = the slype east
+  // ============ FRONT QUAD — ONE continuous medieval ring ============
+  // A single crenellated quadrangle of ranges around the open 38×38 courtyard.
+  // Gaps: the W gate (with the gate tower), the two S corners (→ Back Quad),
+  // and an E opening at the NE (→ the gardens). chapel/hall are anchor spots.
+  { id: "frontquad",  name: "Front Quad",          type: "quad",   x: 0, z: 0, w: 38, d: 38,
+      ring: { t: 5, h: 13, gaps: [
+        { side: "w", at: 0,   width: 7 },     // the gate (Porters' Lodge sits here)
+        { side: "s", at: -13, width: 6 },     // SW corner → Back Quad
+        { side: "s", at: 13,  width: 6 },     // SE corner → Back Quad
+        { side: "e", at: -15, width: 6 },     // NE corner → the gardens
+      ] } },
+  { id: "chapel",     name: "Chapel & Old Library", type: "spot",  x: 16, z: -9 },   // anchor: Dorothy, Finn (on the E range)
+  { id: "hall",       name: "Hall",                type: "spot",   x: 16, z: 9 },     // anchor (on the E range)
 
-  // ============ BACK QUAD (open lawn, fully enclosed) ============
-  // Reached via the slype from the Front Quad's SE corner. W & S sides are the
-  // glass AC/LSK; E side is the Bowra Building; N side a stone range with a
-  // gated slype opening.
-  { id: "backquad",   name: "Back Quad",           type: "quad",   x: 59, z: 60,  w: 37, d: 36 },
-  { id: "bq-north",   name: "Back Quad (N range)",  type: "range",  x: 59, z: 42,  w: 37, d: 3,  h: 11, archway: true, archOffset: -12 }, // slype opening at x≈47
+  // ============ BACK QUAD — directly SOUTH of the Front Quad ============
+  // Open court; enclosed N (Front Quad south range), W (brick), S (south range),
+  // E (the glass AC/LSK). Entered from the Front Quad's two south corners.
+  { id: "backquad",   name: "Back Quad",           type: "quad",   x: 0, z: 48, w: 32, d: 26 },   // x-16..16, z35..61
+  { id: "bq-north",   name: "Back Quad (N range)",  type: "range",  x: 0, z: 35, w: 32, d: 3, h: 12, arches: [-13, 13] }, // openings from Front Quad corners
+  { id: "bq-west",    name: "Back Quad (W brick range)", type: "range", x: -16, z: 48, w: 4, d: 26, h: 11, brick: true },
+  { id: "bq-south",   name: "Back Quad (S range)",  type: "range",  x: 0, z: 61, w: 32, d: 3, h: 11 },
 
-  // ---- AC / LSK new building: GLASS, an L wrapping the W and S of Back Quad --
-  // (Given centres overlapped the quad, so placed as a true L on its W & S
-  //  edges; nothing extends past x = 75. Brighter than the stone ranges.)
-  { id: "lsk",        name: "AC/LSK (west range)",  type: "modern", x: 39, z: 60, w: 6,  d: 40, h: 13, glass: true }, // x36..42, z40..80 — W side
-  { id: "ac",         name: "Access Centre",        type: "modern", x: 57, z: 81, w: 36, d: 7,  h: 12, glass: true }, // x39..75, z77.5..84.5 — S side
+  // ---- AC / LSK — GLASS (the only glass building), EAST of the Back Quad ----
+  // Rotated 90° from before: now runs ~34 wide × 26 deep.
+  { id: "ac",         name: "AC/LSK",              type: "modern", x: 46, z: 48, w: 34, d: 26, h: 13, glass: true }, // x29..63, z35..61
 
-  // ============ RAISED TERRACE CLUSTER (east; Library + Bowra) ============
-  // The only higher ground. You climb steps onto the terrace from the Back Quad
-  // (west side) and drop down steps off the south end into the Bar.
-  { id: "library",    name: "Ferdowsi Library",    type: "modern", x: 87, z: 2,  w: 22, d: 16, h: 14, raised: true, glass: true },
-  { id: "bowra",      name: "Bowra Building",       type: "modern", x: 87, z: 44, w: 20, d: 60, h: 16, raised: true }, // z14..74 — leaves a south corridor to the bar steps
+  // ============ RAISED TERRACE (~2.4 m) — the ONLY way east ============
+  // An L: a west–east arm NORTH of the AC, turning north up to the Library.
+  // (The platforms live in RAISED; these are the buildings standing on it.)
+  { id: "bowra",      name: "Bowra Building",      type: "modern", x: 70, z: 4,  w: 10, d: 40, h: 16, raised: true, brick: true }, // east run
+  { id: "library",    name: "Ferdowsi Library",    type: "modern", x: 72, z: -18, w: 14, d: 12, h: 14, raised: true },             // north end, south-entry only
 
-  // ============ BAR QUAD / WEBB QUAD (south, down the terrace steps) ========
-  { id: "barquad",    name: "Bar Quad",            type: "quad",   x: 86, z: 98, w: 30, d: 26 },
-  { id: "jcr",        name: "JCR & Bar",           type: "range",  x: 86, z: 110, w: 20, d: 6, h: 9 },   // Penrose tiling outside
+  // ============ BAR QUAD — east, down the terrace steps ============
+  // Enclosed on N/E/S; the ONLY way in is the steps down off the terrace (W).
+  { id: "barquad",    name: "Bar Quad",            type: "quad",   x: 92, z: 6,  w: 26, d: 30 },   // x79..105, z-9..21
+  { id: "jcr",        name: "JCR & Bar",           type: "range",  x: 92, z: 14, w: 18, d: 6, h: 9 },
+  { id: "bar-north",  name: "Bar (N range)",       type: "range",  x: 92, z: -10, w: 28, d: 3, h: 10 },
+  { id: "bar-east",   name: "Bar (E range)",       type: "range",  x: 106, z: 6, w: 3, d: 32, h: 10 },
+  { id: "bar-south",  name: "Bar (S range)",       type: "range",  x: 92, z: 22, w: 28, d: 3, h: 10 },
 
-  // ============ GARDENS (north; walled rooms per the site plan) ============
-  // Reached only through gated openings. Two are LOCKED and need a found key.
-  { id: "cloister",      name: "Cloister Garden",  type: "garden", x: 58, z: 1,  w: 18, d: 16, walled: true,
-      gates: [ {side:"w", at: 1, width: 5}, {side:"s", at: 58, width: 4} ] },                              // former cemetery, below the terrace
-  { id: "fellowsgarden", name: "Fellows' Garden",  type: "garden", x: 37, z: -59, w: 44, d: 30, walled: true,
-      gates: [ {side:"s", at: 37, width: 6}, {side:"w", at:-59, width: 5} ] },
-  { id: "wardensgarden", name: "Warden's Garden",  type: "garden", x: -20, z: -77, w: 30, d: 28, walled: true,
-      gates: [ {side:"s", at:-20, width: 5, locked: true, key: "key_wardens"} ] },                         // LOCKED
-  { id: "privategarden", name: "Fellows' Private Garden", type: "garden", x: 35, z: -129, w: 40, d: 28, walled: true,
-      gates: [ {side:"s", at: 35, width: 5, locked: true, key: "key_private"} ] },                         // LOCKED
-  { id: "terrace",    name: "Civil War Terrace",   type: "marker", x: 8, z: -104, w: 4,  d: 36, h: 3 },
+  // ============ GARDENS (north; aligned, contiguous, outer wall) ============
+  // cloister opens straight into fellowsgarden (wide opening, no real wall);
+  // warden's & private gardens are LOCKED sub-rooms within shorter walls.
+  { id: "cloister",      name: "Cloister Garden",  type: "garden", x: 36, z: -16, w: 22, d: 20, walled: true,
+      gates: [ {side:"w", at:-16, width: 6}, {side:"n", at: 33, width: 14} ] },                         // W = entry from Front Quad; N = open to fellows
+  { id: "fellowsgarden", name: "Fellows' Garden",  type: "garden", x: 6, z: -58, w: 62, d: 52, walled: true,
+      gates: [ {side:"s", at: 33, width: 14}, {side:"w", at:-52, width: 6}, {side:"n", at: 6, width: 6} ] }, // S↔cloister, W→warden's, N→private
+  { id: "wardensgarden", name: "Warden's Garden",  type: "garden", x: -46, z: -52, w: 24, d: 44, walled: true,
+      gates: [ {side:"e", at:-52, width: 6, locked: true, key: "key_wardens"} ] },                       // LOCKED
+  { id: "privategarden", name: "Fellows' Private Garden", type: "garden", x: 6, z: -104, w: 52, d: 36, walled: true,
+      gates: [ {side:"s", at: 6, width: 5, locked: true, key: "key_private"} ] },                        // LOCKED
 
-  // ---------------- HOLYWELL (south edge, Holywell Street) ------------------
-  { id: "holywell",   name: "Holywell Music Room", type: "range",  x: -2, z: 42,  w: 16, d: 12, h: 10 },
+  // ============ PERIMETER ranges — enclose the whole college ============
+  { id: "southrange",  name: "Southern Range",     type: "range",  x: 18, z: 86, w: 118, d: 9, h: 12 },  // continuous south wall
+  { id: "sw-link",     name: "SW Range",           type: "range",  x: -39, z: 58, w: 8, d: 56, h: 12 },  // west link down to the south range
+  { id: "se-link",     name: "SE Range",           type: "range",  x: 63, z: 63, w: 6, d: 54, h: 12 },   // seals the east at ground (terrace is the only way through)
+
+  // ---------------- HOLYWELL (moved clear of the new Back Quad) -------------
+  { id: "holywell",   name: "Holywell Music Room", type: "range",  x: -26, z: 44,  w: 16, d: 12, h: 10 },
 
   // ---------------- PLUSH (off-site, down Broad St & Cornmarket) ------------
   { id: "plush",      name: "PLUSH",               type: "goal",   x: -70, z: 28, w: 8, d: 8, h: 7, goal: true },
 ];
 
 /* -----------------------------------------------------------------------------
-   RAISED levels — the only higher ground: the Library + Bowra terrace. The
-   engine builds a stone platform; the STEPS below lift/drop you onto and off it.
-   steps:"none" disables the auto-generated flight (we place explicit STEPS).
-   y = height in metres.
+   RAISED levels — the raised terrace (Library + Bowra). Two platforms form an L:
+   a west–east arm north of the AC, and a north arm up to the Library.
+   steps:"none" disables the auto flight (we place explicit STEPS).
 ----------------------------------------------------------------------------- */
 export const RAISED = [
-  { x: 86, z: 28, w: 26, d: 104, y: 2.4, steps: "none" },  // x73..99, z-24..80 — Library + Bowra terrace
+  { x: 45, z: 30, w: 50, d: 12, y: 2.4, steps: "none" },  // x20..70, z24..36 — arm north of the AC
+  { x: 72, z: 2,  w: 16, d: 52, y: 2.4, steps: "none" },  // x64..80, z-24..28 — east+north arm to the Library
 ];
 
 /* -----------------------------------------------------------------------------
-   STEPS — explicit ramps onto/off the raised terrace. Each is a flight you can
-   walk up or down; the engine ramps the floor across the rect and draws stairs.
-     x,z = centre; w,d = footprint; axis = the slope direction ('x' or 'z');
-     high = which end is at terrace height ('e'/'w' for axis x, 'n'/'s' for z);
-     y = top height (matches the terrace).
+   STEPS — explicit ramps onto/off the raised terrace.
+     x,z = centre; w,d = footprint; axis = slope direction ('x'|'z');
+     high = which end is at terrace height ('e'/'w' for x, 'n'/'s' for z); y = top.
 ----------------------------------------------------------------------------- */
 export const STEPS = [
-  { x: 70, z: 46, w: 6, d: 7, axis: "x", high: "e", y: 2.4 },   // up from Back Quad → terrace (meets terrace edge x73)
-  { x: 70, z: 60, w: 6, d: 7, axis: "x", high: "e", y: 2.4 },   // up from Back Quad → terrace
-  { x: 84, z: 83, w: 8, d: 6, axis: "z", high: "n", y: 2.4 },   // down off the terrace (z80) → Bar Quad
+  { x: 17, z: 30, w: 6, d: 8, axis: "x", high: "e", y: 2.4 },  // up onto the terrace, on the AC side (from the Front Quad corridor)
+  { x: 83, z: 6,  w: 6, d: 8, axis: "x", high: "w", y: 2.4 },  // down off the terrace's east edge → Bar Quad
 ];
 
 /* -----------------------------------------------------------------------------
-   FENCES — impassable iron railings (colliders + a visible rail). Used along
-   the terrace's west edge so you can't drop down into the Cloister Garden.
-     x,z = centre; w,d = footprint (one is thin = the rail thickness).
+   FENCES — impassable iron railings (collider + visible rail). Seal the terrace
+   so the Library can only be approached from the south.
 ----------------------------------------------------------------------------- */
 export const FENCES = [
-  { x: 73.5, z: -5, w: 1, d: 34 },   // terrace west edge, z ≈ -22..12, above the Cloister Garden
+  { x: 64, z: 2,   w: 1,  d: 52 },   // terrace WEST edge, all the way up to the Library
+  { x: 72, z: -25, w: 16, d: 1  },   // across the Library's NORTH side
+  { x: 80, z: -14, w: 1,  d: 22 },   // terrace EAST edge by the Library (so it's south-entry only)
 ];
 
 /* -----------------------------------------------------------------------------
-   STREET to Plush — you leave the gate, go down BROAD STREET, turn LEFT down
-   CORNMARKET STREET, and Plush is on the RIGHT. (Not geographically accurate —
-   only the college is.) path = lamp-lit gravel polyline.
+   STREET to Plush — leave the gate, down BROAD STREET, LEFT down CORNMARKET,
+   Plush on the RIGHT. (Not geographically accurate — only the college is.)
 ----------------------------------------------------------------------------- */
 export const STREET = {
   path: [ {x:-24,z:0}, {x:-56,z:0}, {x:-56,z:32} ],     // gate → Broad St (W) → left down Cornmarket (S)
@@ -152,7 +167,6 @@ export const STREET = {
     { x:-40, z:-5, text:"Broad Street",      face:"s" },
     { x:-61, z:14, text:"Cornmarket Street", face:"e" },
   ],
-  // dark shopfronts for atmosphere along the route
   shops: [ [-46,-7,10,8], [-34,-8,10,8], [-61,8,9,9], [-61,24,9,9], [-48,38,12,9] ],
 };
 
@@ -160,17 +174,17 @@ export const STREET = {
    TREES — big specimen trees (the engine also scatters smaller ones in gardens).
 ----------------------------------------------------------------------------- */
 export const TREES = [
-  { x:59, z:60, s:2.2, kind:"plane" },     // the great Back Quad plane tree
-  { x:37, z:-59, s:1.8 }, { x:25, z:-52, s:1.5 }, { x:48, z:-66, s:1.4 },
-  { x:35, z:-129, s:1.7 }, { x:24, z:-122, s:1.3 },
-  { x:-20, z:-77, s:1.6 }, { x:-28, z:-83, s:1.4 },
-  { x:58, z:1, s:1.3 }, { x:30, z:30, s:1.4 },
+  { x:0, z:48, s:2.2, kind:"plane" },      // the great Back Quad plane tree
+  { x:6, z:-58, s:1.9 }, { x:-12, z:-50, s:1.5 }, { x:24, z:-66, s:1.5 },
+  { x:6, z:-104, s:1.7 }, { x:-8, z:-110, s:1.3 },
+  { x:-46, z:-52, s:1.6 }, { x:-50, z:-62, s:1.4 },
+  { x:36, z:-16, s:1.3 }, { x:-30, z:20, s:1.4 },
 ];
 
 /* -----------------------------------------------------------------------------
    MAGGIE MAE — dog poo you can step in. (Grim. Sorry.)
 ----------------------------------------------------------------------------- */
-export const POO = [ {x:57, z:58}, {x:62, z:62}, {x:54, z:64} ];
+export const POO = [ {x:3, z:46}, {x:-4, z:52}, {x:6, z:55} ];
 
 /* -----------------------------------------------------------------------------
    ITEMS — pickups & quest objects.
@@ -208,14 +222,14 @@ export const QUESTS = [
   { id: "tuesgays", title: "Tuesgays", type: "win",
     brief: "Out at last. Round up your six friends, grab the regrettable blue drink, and get to Plush — down Broad Street, left down Cornmarket, on your right.",
     requires: ["gate_open","collegedrink"], requiresAllFriends: true, goalMarker: "plush",
-    winText: "You spill down the stairs into Plush as the DJ drops the one song everyone pretends not to know every word of. Three Jägerbombs for a fiver. Your friends are already on the dancefloor — Eva mid-rant about the Normans, Megan ordering in Spanish, Rupert filming it all. The gates, the keys, the thesis, the dog poo — none of it followed you here. The night is entirely, gloriously yours. 🪩" },
+    winText: "You spill down the stairs into Plush as the DJ drops the one song everyone pretends not to know every word of. Three Jägerbombs for a fiver. Your friends are already on the dancefloor — Eva mid-rant about the Normans, Megan ordering in Spanish, Rupert filming it all. The gates, the keys, the thesis, the dog poo, that creep Arran — none of it followed you here. The night is entirely, gloriously yours. 🪩" },
 ];
 
 /* -----------------------------------------------------------------------------
    NPCS  — walk up and press E.
    role: "gatekeeper" (porter) | "oracle" (ghost) | "questgiver" | "friend" | "flavour"
-   action (optional special bit): "elfbar" | "ketamine" | "givebook" | "givegame"
-                                  | "dog" | "singer"
+   action (optional special bit): "elfbar" | "givebook" | "givegame" | "dog" | "singer"
+   villain:true → chases the player; on close contact forces a ketamine impairment.
    Extra looks: ghost:true, hair:"#hex", glasses:true, dog:true.
 ----------------------------------------------------------------------------- */
 export const NPCS = [
@@ -233,7 +247,7 @@ export const NPCS = [
     "Wren left three toys in these gardens: a glass beehive, a statue that talks, and an engine that makes rainbows. The rainbow's locked away in the Private Garden — find the keys.",
     "Bring me all three and the garden key is yours. Mind the telescope bolted to the tower — I'll know if you touch it." ] },
   { id:"bowra", name:"Warden Maurice Bowra", at:"barquad", colour:"#8a6a3a", role:"oracle", ghost:true, lines:[
-    "Bowra. Warden thirty-two years. They named that concrete monstrosity behind me after me. I'd have preferred a decent claret.",
+    "Bowra. Warden thirty-two years. They named that brick monstrosity behind me after me. I'd have preferred a decent claret.",
     "Caught a boy climbing in once — hid behind my sofa three hours. I said: 'turn the lights off before you go, there's a good fellow.'",
     "Off to Tuesgays? In my day we called Tuesday 'Tuesday'. We were less honest and far worse dressed." ] },
 
@@ -275,10 +289,11 @@ export const NPCS = [
     "Feminist legal theory tutorial is at nine tomorrow. Nine. I will know if you went to Plush. I always know." ] },
 
   // ===================== ENCOUNTERS =========================================
-  { id:"arran", name:"Arran", at:"cloister", colour:"#4a4458", hair:"#2a2a2a", role:"flavour", action:"ketamine", lines:[
-    "Alright. Arran. You look stressed, man. Locked in, the whole thing, yeah, yeah.",
-    "Here. Bit of ket. Just a bump. Smooths the edges right off, you'll float to Plush.",
-    "...go on then. Down the hatch. Don't say I never give you anything." ] },
+  // Arran — the villain. He prowls the college and corners you for a "bump".
+  { id:"arran", name:"Arran", at:"backquad", colour:"#3a2030", hair:"#141414", role:"flavour", villain:true, lines:[
+    "Oi. Oi — where you off to? Don't be like that. I've got something for you.",
+    "Just a little bump, yeah? For the nerves. You look tense. Locked in all night, anyone would be.",
+    "Run round these quads all you like, mate. I'll find you. I always do." ] },
   { id:"finn", name:"Finn Grammaticas", at:"chapel", colour:"#6a5a8a", hair:"#2a1a0a", role:"flavour", action:"singer", lines:[
     "(Finn is mid-rehearsal in the ante-chapel, eyes closed, absolutely going for it.)",
     "Finn. Choir. We've got Evensong in eight hours and I have not slept. The acoustics in here though — listen.",
