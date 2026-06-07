@@ -110,6 +110,7 @@ function startGame() {
   if (!started) { initWorld(); started = true; }
   $('start').classList.add('hidden');
   running = true;
+  sndInit();                                  // user gesture — browsers allow audio now
   if (!isTouch && controls) controls.lock();
   clock.getDelta();
   renderer.setAnimationLoop(tick);
@@ -167,7 +168,7 @@ function initWorld() {
 
   // QA hook — only active if you load index.html#debug. Lets a test harness
   // orbit the camera to inspect the world. Never touched during normal play.
-  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, openGate, look, checkWin, currentObjective, updateHUD, NPCS };
+  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, talkTo, nearestInteractable };
 }
 
 const ctx = {};   // scratch buffers for instancing
@@ -479,17 +480,50 @@ function buildTerrace(L) {
 }
 
 function buildPlush(L) {
-  // a glowing club doorway out beyond the gate
-  const box = new THREE.Mesh(new THREE.BoxGeometry(L.w, L.h, L.d),
-    new THREE.MeshLambertMaterial({ color: 0x140a1e, flatShading: true }));
-  box.position.set(L.x, L.h / 2, L.z); scene.add(box);
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(L.w * 1.2, 1.6),
-    new THREE.MeshBasicMaterial({ map: textTex('PLUSH', '#ff4fd8', 64), transparent: true, fog: false }));
-  sign.position.set(L.x, L.h + 1.2, L.z + L.d / 2 + 0.1); scene.add(sign);
-  const glow = new THREE.PointLight(COL.neon, 6, 30, 2);
-  glow.position.set(L.x, 3, L.z + L.d / 2 + 1); scene.add(glow);
+  // the club itself
+  const club = new THREE.Mesh(new THREE.BoxGeometry(L.w, L.h, L.d),
+    new THREE.MeshLambertMaterial({ color: 0x180b22, flatShading: true }));
+  club.position.set(L.x, L.h / 2, L.z); scene.add(club);
   addCollider(L.x, L.z, L.w, L.d);
-  L._goalPos = new THREE.Vector3(L.x, 0, L.z + L.d / 2 + 3);
+
+  const ex = L.x + L.w / 2;                 // entrance faces the gate (east / +X)
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 3.2),
+    new THREE.MeshBasicMaterial({ color: 0xff4fd8, transparent: true, opacity: 0.92, fog: false, toneMapped: false }));
+  door.rotation.y = Math.PI / 2; door.position.set(ex + 0.06, 1.7, L.z); scene.add(door);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2),
+    new THREE.MeshBasicMaterial({ map: textTex('PLUSH ▾', '#ff4fd8', 60), transparent: true, fog: false, toneMapped: false }));
+  sign.rotation.y = Math.PI / 2; sign.position.set(ex + 0.1, L.h + 1.4, L.z); scene.add(sign);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex('#ff7fe0'), color: 0xff4fd8,
+    transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  glow.scale.set(15, 15, 1); glow.position.set(ex + 1, 2.6, L.z); scene.add(glow);
+  const plight = new THREE.PointLight(COL.neon, 7, 36, 2); plight.position.set(ex + 2, 3, L.z); scene.add(plight);
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(18, 18),
+    new THREE.MeshBasicMaterial({ map: radialTex('#ff4fd8'), transparent: true, opacity: 0.4,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  pool.rotation.x = -Math.PI / 2; pool.position.set(ex + 4, 0.05, L.z); scene.add(pool);
+  for (let i = 0; i < 4; i++) {                    // velvet-rope bollards
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.0, 8), stoneMat(0x2a2a34));
+    b.position.set(ex + 3.5 + (i % 2) * 2.4, 0.5, L.z - 3 + i * 2); scene.add(b);
+  }
+
+  // --- a lit gravel avenue from the gate out to Plush (so it's an obvious walk) ---
+  const gx = -27, gz = 0;
+  const goal = new THREE.Vector3(ex + 4, 0, L.z);
+  const steps = 9;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps, px = gx + (goal.x - gx) * t, pz = gz + (goal.z - gz) * t;
+    addPatch(px, pz, 8, 8, COL.gravel, 0.006);
+    ctx.lamps.push({ x: px, z: pz + (i % 2 ? 3.2 : -3.2) });
+  }
+  // a little Parks Road / town context flanking the approach (kept off the path)
+  [[-44, 4], [-56, 40], [-66, 42], [-82, 10], [-88, 40]].forEach(([bx, bz], i) => {
+    const hh = 9 + (i % 2) * 4;
+    const h = new THREE.Mesh(new THREE.BoxGeometry(10, hh, 10), stoneMat(i % 2 ? 0x20242e : 0x262a34));
+    h.position.set(bx, hh / 2, bz); scene.add(h); addCollider(bx, bz, 10, 10);
+    addWindows(bx, bz, 10, 10, hh, 3);
+  });
+
+  L._goalPos = goal;
 }
 
 /* --- commit all instanced geometry into single draw calls --------------- */
@@ -574,6 +608,26 @@ function commitLamps() {
 ============================================================================ */
 const CURIOSITY = { apiary: 1, statue: 1, rainbow: 1 };
 
+/* Keep spawned NPCs/items out of solid walls. If a spot is inside a building,
+   spiral outward to the nearest open ground so you can always walk up to them. */
+function collidesAt(x, z, pad) {
+  for (const c of colliders)
+    if (x > c.minX - pad && x < c.maxX + pad && z > c.minZ - pad && z < c.maxZ + pad) return true;
+  return false;
+}
+function findOpenSpot(x, z, pad = 1.0) {
+  if (!collidesAt(x, z, pad)) return { x, z };
+  for (let r = 2; r <= 22; r += 1.2) {
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * Math.PI * 2;
+      const nx = x + Math.cos(a) * r, nz = z + Math.sin(a) * r;
+      if (nx < BOUNDARY.minX + 1 || nx > BOUNDARY.maxX - 1 || nz < BOUNDARY.minZ + 1 || nz > BOUNDARY.maxZ - 1) continue;
+      if (!collidesAt(nx, nz, pad)) return { x: nx, z: nz };
+    }
+  }
+  return { x, z };
+}
+
 function spawnPickups() {
   const perLoc = {};
   ITEMS.forEach((it) => {
@@ -581,9 +635,9 @@ function spawnPickups() {
     const L = loc(it.foundAt); if (!L) return;
     const n = (perLoc[it.foundAt] = (perLoc[it.foundAt] || 0) + 1);
     const ang = n * 2.2, rad = 2 + n * 1.4;
-    const x = L.x + Math.cos(ang) * rad, z = L.z + Math.sin(ang) * rad;
+    const spot = findOpenSpot(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad, 0.7);
     const mesh = CURIOSITY[it.id] ? curiosityMesh(it.id) : pickupMesh(it.id);
-    mesh.position.set(x, 1.0, z);
+    mesh.position.set(spot.x, 1.0, spot.z);
     mesh.userData.base = 1.0;
     scene.add(mesh);
     pickups.push({ item: it, mesh, taken: false });
@@ -650,12 +704,13 @@ function spawnNPCs() {
     if (def.role === 'gatekeeper') { x = L.x + 5; z = L.z + 2.5; }   // just inside the gate, in the quad
     else {
       const ang = 1 + n * 2.4, rad = 2.6 + n * 1.2;
-      x = L.x + Math.cos(ang) * rad; z = L.z + Math.sin(ang) * rad;
+      ({ x, z } = findOpenSpot(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad, 0.9));
     }
     const group = npcFigure(def);
     group.position.set(x, 0, z);
     scene.add(group);
-    const label = makeLabel(def.name, def.role);
+    const tag = def.questGiver ? 'quest' : def.role === 'friend' ? 'friend' : '';
+    const label = makeLabel(def.name, tag);
     label.position.set(x, 2.5, z); scene.add(label);
     npcs.push({ def, group, label, talked: false, baseX: x, baseZ: z, phase: rng() * 6 });
   });
@@ -664,7 +719,7 @@ function spawnNPCs() {
 function npcFigure(def) {
   const g = new THREE.Group();
   const col = new THREE.Color(def.colour || '#cccccc');
-  const ghost = def.role === 'oracle';
+  const ghost = def.ghost || def.role === 'oracle';
   const bodyMat = new THREE.MeshLambertMaterial({
     color: ghost ? COL.ghost : col, flatShading: true,
     transparent: ghost, opacity: ghost ? 0.55 : 1,
@@ -685,10 +740,10 @@ function npcFigure(def) {
   return g;
 }
 
-function makeLabel(text, role) {
-  const sub = role === 'friend' ? 'friend' : role === 'questgiver' || role === 'oracle' ? 'quest' : '';
+function makeLabel(text, tag) {
+  const sub = tag || '';
   const spr = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: textTex(text, role === 'friend' ? '#ffd1ec' : '#ffe9b8', 44, sub),
+    map: textTex(text, tag === 'friend' ? '#ffd1ec' : '#ffe9b8', 44, sub),
     transparent: true, depthTest: false, depthWrite: false, fog: false }));
   spr.scale.set(6.2, 1.55, 1);
   spr.renderOrder = 10;
@@ -984,11 +1039,11 @@ function buildHelpAndLog() {
   $('help-body').innerHTML = isTouch
     ? `<p><b>Move</b> — left thumb stick</p><p><b>Look</b> — drag right side</p>
        <p><b>Interact / talk</b> — the ✋ button (or tap a glowing thing up close)</p>
-       <p><b>Quest log</b> — 📜 &nbsp; <b>Help</b> — ❓</p>`
+       <p><b>Quests</b> — 📜 &nbsp; <b>Help</b> — ❓ &nbsp; <b>Mute</b> — 🔊</p>`
     : `<p><b>Move</b> — W A S D &nbsp; <b>Run</b> — Shift</p><p><b>Look</b> — mouse</p>
        <p><b>Interact / talk / advance</b> — E or click</p>
-       <p><b>Quest log</b> — L &nbsp; <b>Help</b> — H &nbsp; <b>Pause</b> — Esc</p>`;
-  $('help-body').innerHTML += `<p style="opacity:.7;margin-top:10px">North is up on the compass. Follow the blue beacon to your current objective.</p>`;
+       <p><b>Quest log</b> — L &nbsp; <b>Help</b> — H &nbsp; <b>Mute</b> — M &nbsp; <b>Pause</b> — Esc</p>`;
+  $('help-body').innerHTML += `<p style="opacity:.7;margin-top:10px">Talk to <b>everyone</b> — the anecdotes are the point. North is up on the compass; follow the blue beacon to your current objective.</p>`;
 }
 
 function updateLog() {
@@ -1049,6 +1104,7 @@ function bindInput() {
     if (e.code === 'KeyE' || e.code === 'Space') { if (running || dialogue.open) { e.preventDefault(); interact(); } }
     if (e.code === 'KeyL') { e.preventDefault(); if (dialogue.open) closeDialogue(); toggleMenu('log'); }
     if (e.code === 'KeyH') { e.preventDefault(); if (dialogue.open) closeDialogue(); toggleMenu('help'); }
+    if (e.code === 'KeyM') { e.preventDefault(); sndToggle(); }
     if (e.code === 'Escape') { if (dialogue.open) closeDialogue(); }
   });
   addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -1113,6 +1169,7 @@ function bindTouch() {
   $('btn-act').addEventListener('click', () => interact());
   $('btn-log2').addEventListener('click', () => toggleMenu('log'));
   $('btn-help2').addEventListener('click', () => toggleMenu('help'));
+  const mb = $('btn-mute'); if (mb) mb.addEventListener('click', () => sndToggle());
 }
 
 /* ============================================================================
@@ -1158,6 +1215,14 @@ function updatePlayer(dt) {
 
   camera.position.x = nx; camera.position.z = nz;
   camera.position.y = PLAYER.h + Math.sin(performance.now() * 0.01) * 0.015 * Math.min(1, velocity.length());
+
+  // footsteps, paced to speed
+  const sp2 = Math.hypot(velocity.x, velocity.z);
+  if (sp2 > 0.8 && !dialogue.open) {
+    SND.stepDist += sp2 * dt;
+    const stride = (keys['ShiftLeft'] || keys['ShiftRight']) ? 2.4 : 1.8;
+    if (SND.stepDist > stride) { SND.stepDist = 0; sndStep(); }
+  } else SND.stepDist = 1.4;     // primed so the first step lands as soon as you move
 }
 
 function resolveAxis(x, z, axis) {
@@ -1289,26 +1354,93 @@ function onResize() {
 }
 
 /* ============================================================================
-   AUDIO — tiny WebAudio blips, no asset files
+   AUDIO — fully procedural (no asset files): a calm night drone, occasional
+   Oxford church-bell peals, footsteps, and event blips. Mute with M / the 🔇 button.
 ============================================================================ */
-let actx;
-function beep(kind) {
+const SND = { ctx: null, master: null, music: null, on: true, started: false, stepDist: 1.4 };
+
+function sndInit() {
+  if (SND.started) return;
   try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-    const now = actx.currentTime;
-    const notes = {
-      pickup: [660, 880], talk: [330], friend: [520, 780], quest: [523, 659, 784],
-      gate: [180, 120], win: [523, 659, 784, 1047], step: [90],
-    }[kind] || [440];
-    notes.forEach((f, i) => {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.type = kind === 'gate' ? 'sawtooth' : 'triangle'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, now + i * 0.08);
-      g.gain.exponentialRampToValueAtTime(0.12, now + i * 0.08 + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.18);
-      o.connect(g).connect(actx.destination); o.start(now + i * 0.08); o.stop(now + i * 0.08 + 0.2);
-    });
-  } catch (e) { /* audio optional */ }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = SND.ctx = new Ctx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const master = SND.master = ctx.createGain();
+    master.gain.value = SND.on ? 0.9 : 0.0; master.connect(ctx.destination);
+    const music = SND.music = ctx.createGain(); music.gain.value = 0.6; music.connect(master);
+    sndPad(ctx, music);
+    SND.started = true;
+    sndBellLoop();
+  } catch (e) { /* audio is optional */ }
+}
+
+function sndPad(ctx, out) {                       // a quiet, sacred-ish drone in open fifths
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 600; lp.Q.value = 0.6; lp.connect(out);
+  const pg = ctx.createGain(); pg.gain.value = 0.05; pg.connect(lp);
+  [110, 164.81, 220, 246.94].forEach((f, i) => {  // A2 · E3 · A3 · B3
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f * (i % 2 ? 1.004 : 0.996);
+    const g = ctx.createGain(); g.gain.value = 0.22; o.connect(g).connect(pg); o.start();
+    const lfo = ctx.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.04 + i * 0.017;
+    const lg = ctx.createGain(); lg.gain.value = 0.1; lfo.connect(lg).connect(g.gain); lfo.start();
+  });
+  const flfo = ctx.createOscillator(); flfo.frequency.value = 0.02;
+  const fg = ctx.createGain(); fg.gain.value = 170; flfo.connect(fg).connect(lp.frequency); flfo.start();
+}
+
+function sndBell(base, when, vol) {               // one inharmonic bell toll
+  const ctx = SND.ctx; if (!ctx) return;
+  const t = when || ctx.currentTime, decay = 3.4, v = vol || 0.07;
+  const bg = ctx.createGain(); bg.gain.setValueAtTime(0.0001, t);
+  bg.gain.exponentialRampToValueAtTime(v, t + 0.008);
+  bg.gain.exponentialRampToValueAtTime(0.0001, t + decay); bg.connect(SND.music);
+  [[1, 1], [2.0, 0.6], [2.76, 0.4], [5.18, 0.18], [8.2, 0.1]].forEach(([r, a]) => {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = base * r;
+    const g = ctx.createGain(); g.gain.value = a; o.connect(g).connect(bg); o.start(t); o.stop(t + decay + 0.1);
+  });
+}
+
+function sndBellLoop() {                           // a toll or a short descending peal, now and then
+  if (!SND.started) return;
+  const ctx = SND.ctx, peal = [392.0, 349.23, 329.63, 293.66, 261.63];
+  if (Math.random() < 0.5) {
+    const n = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) sndBell(peal[i % peal.length], ctx.currentTime + i * 0.62, 0.055);
+  } else sndBell(peal[Math.floor(Math.random() * peal.length)], ctx.currentTime, 0.07);
+  setTimeout(sndBellLoop, 11000 + Math.random() * 13000);
+}
+
+function sndStep() {                               // a soft footfall (filtered noise burst)
+  const ctx = SND.ctx; if (!ctx || !SND.started || !SND.on) return;
+  const sr = ctx.sampleRate, len = Math.floor(sr * 0.11);
+  const buf = ctx.createBuffer(1, len, sr), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 150 + Math.random() * 70; bp.Q.value = 1.1;
+  const g = ctx.createGain(); g.gain.value = 0.16;
+  src.connect(bp).connect(g).connect(SND.master); src.start();
+}
+
+function sndToggle() {
+  SND.on = !SND.on;
+  if (SND.master) SND.master.gain.linearRampToValueAtTime(SND.on ? 0.9 : 0.0, SND.ctx.currentTime + 0.18);
+  toast(SND.on ? '🔊 Sound on' : '🔇 Muted');
+  const b = $('btn-mute'); if (b) b.textContent = SND.on ? '🔊' : '🔇';
+}
+
+function beep(kind) {                              // event blips, routed through the mute bus
+  if (!SND.ctx) sndInit();
+  const ctx = SND.ctx; if (!ctx) return;
+  const out = SND.master || ctx.destination, now = ctx.currentTime;
+  const notes = { pickup: [660, 880], talk: [392], friend: [523, 784], quest: [523, 659, 784],
+    gate: [160, 110], win: [523, 659, 784, 1047], step: [90] }[kind] || [440];
+  notes.forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = kind === 'gate' ? 'sawtooth' : 'triangle'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, now + i * 0.08);
+    g.gain.exponentialRampToValueAtTime(0.12, now + i * 0.08 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.08 + 0.18);
+    o.connect(g).connect(out); o.start(now + i * 0.08); o.stop(now + i * 0.08 + 0.2);
+  });
 }
 
 /* go */

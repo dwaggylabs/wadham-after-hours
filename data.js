@@ -65,9 +65,9 @@ export const LOCATIONS = [
   { id: "wardensgarden",name: "Warden's Garden",     type: "garden", x: -28, z: -92, w: 30, d: 30 },
 
   // --- East & modern ---
-  { id: "library",     name: "Library",              type: "range",  x: 50,  z: -30,w: 16, d: 26, h: 14 },
-  { id: "webbquad",    name: "Webb Quad",            type: "quad",   x: 36,  z: 44, w: 30, d: 26 },
-  { id: "jcr",         name: "JCR & Bar",            type: "range",  x: 18,  z: 44, w: 12, d: 10, h: 8 }, // Tuesgays pre-drinks happen here
+  { id: "library",     name: "Ferdowsi Library",     type: "range",  x: 50,  z: -30,w: 16, d: 26, h: 14 }, // 1977 brutalist, brushed concrete
+  { id: "webbquad",    name: "Bar Quad",             type: "quad",   x: 36,  z: 44, w: 30, d: 26 },
+  { id: "jcr",         name: "JCR & Bar",            type: "range",  x: 18,  z: 44, w: 12, d: 10, h: 8 }, // Tuesgays pre-drinks; Penrose tiling outside
   { id: "holywell",    name: "Holywell Music Room",  type: "range",  x: -10, z: 74, w: 16, d: 12, h: 10 },
 
   // --- The destination (off-site; just a glowing marker beyond the gate) ---
@@ -78,16 +78,17 @@ export const LOCATIONS = [
    ITEMS — pickups and quest objects.
 ----------------------------------------------------------------------------- */
 export const ITEMS = [
-  { id: "key_bar",     name: "Brass key (JCR)",      foundAt: "jcr",          hint: "Someone left it by the beer fridge." },
-  { id: "key_garden",  name: "Brass key (Garden)",   reward: "invisible_college", hint: "Wilkins hands it over once the Royal Society reconvenes." },
-  { id: "key_chapel",  name: "Brass key (Chapel)",   reward: "founders_blessing", hint: "The Founder's gift." },
-  { id: "bodcard",     name: "Your Bod card",        foundAt: "fellowsgarden", hint: "You dropped it under a tree, obviously." },
-  { id: "collegedrink",name: "The Wadham college drink", foundAt: "jcr",      hint: "Sticky, blue, regrettable. Essential." },
-  { id: "subfusc",     name: "Subfusc & gown",       foundAt: "backquad",     hint: "Optional drip for the dancefloor." },
-  // Wren's three garden curiosities (for the Invisible College quest):
-  { id: "apiary",      name: "Glass apiary",         foundAt: "fellowsgarden", hint: "Wren's transparent beehive." },
-  { id: "statue",      name: "Speaking statue",      foundAt: "fellowsgarden", hint: "It mutters when you pass." },
-  { id: "rainbow",     name: "Artificial rainbow",   foundAt: "fellowsgarden", hint: "Made of misted water." },
+  { id: "key_bar",     name: "Brass key (JCR)",      foundAt: "jcr",          hint: "Last seen on the Penrose tiling by the bar, in a puddle of someone's snakebite." },
+  { id: "key_garden",  name: "Brass key (Garden)",   reward: "invisible_college", hint: "Wilkins will surrender it the moment his dead-scientists club is quorate." },
+  { id: "key_chapel",  name: "Brass key (Chapel)",   reward: "founders_blessing", hint: "The Foundress's gift. She's dead, she's bored, she's weirdly generous." },
+  { id: "bodcard",     name: "Your Bod card",        foundAt: "fellowsgarden", hint: "Dropped in the Fellows' Garden, obviously — probably under the tree you cried beneath in Hilary." },
+  { id: "collegedrink",name: "The Wadham college drink", foundAt: "jcr",      hint: "Sticky, blue, faintly radioactive. The bar insists it's a cocktail. Non-negotiable." },
+  { id: "subfusc",     name: "Subfusc & gown",       foundAt: "backquad",     hint: "Gown and white tie. Wear it and you'll be the only person at Plush dressed for a viva." },
+  // Wren's three garden curiosities (for the Invisible College quest) — all REAL
+  // gadgets the 1650s Wadham scientists actually built or wrote about:
+  { id: "apiary",      name: "Glass apiary",         foundAt: "fellowsgarden", hint: "Wren's transparent beehive — watch bees commute without being stung. He did this BEFORE St Paul's." },
+  { id: "statue",      name: "Speaking statue",      foundAt: "fellowsgarden", hint: "A statue that mutters as you pass. Wilkins thought this was a normal thing to put in a garden." },
+  { id: "rainbow",     name: "Artificial rainbow",   foundAt: "fellowsgarden", hint: "A machine that makes a rainbow from mist. 1650s tech, still more reliable than the college WiFi." },
 ];
 
 /* -----------------------------------------------------------------------------
@@ -99,7 +100,7 @@ export const QUESTS = [
     id: "after_hours",
     title: "After Hours",
     type: "main",
-    brief: "The gates are locked. Find 3 brass keys and your Bod card, then open the Porters' Lodge.",
+    brief: "The gates are locked, because of course they are. Find 3 brass keys and your Bod card, then sweet-talk the Porter into springing the Lodge.",
     requires: ["key_bar", "key_garden", "key_chapel", "bodcard"],
     unlocks: ["gate_open"],
   },
@@ -107,7 +108,7 @@ export const QUESTS = [
     id: "invisible_college",
     title: "The Invisible College",
     type: "side",
-    brief: "Help Warden Wilkins find Wren's curiosities in the Fellows' Garden to reconvene the Royal Society.",
+    brief: "Warden Wilkins wants Wren's three garden gadgets found so his Invisible College can pretend to be a real scientific society again. Reward: a key, grudgingly.",
     requires: ["apiary", "statue", "rainbow"],
     unlocks: ["key_garden"],
     giver: "wilkins",
@@ -116,7 +117,7 @@ export const QUESTS = [
     id: "founders_blessing",
     title: "The Founder's Blessing",
     type: "side",
-    brief: "Find Dorothy Wadham in the ante-chapel.",
+    brief: "Dorothy Wadham is haunting the ante-chapel. She founded the place and never once visited; the least she can do now is hand over a key.",
     unlocks: ["key_chapel"],
     giver: "dorothy",
   },
@@ -124,11 +125,11 @@ export const QUESTS = [
     id: "tuesgays",
     title: "Tuesgays",
     type: "win",
-    brief: "Out at last. Rally your friends, grab the college drink, and get to Plush.",
+    brief: "Out at last. Round up your friends (all 'basically ready'), grab the regrettable blue drink, and get to Plush before they play the good songs.",
     requires: ["gate_open", "collegedrink"],         // + talk to every friend NPC
     requiresAllFriends: true,
     goalMarker: "plush",
-    winText: "You burst into Plush as the drag host calls your name. The night is yours. 🪩",
+    winText: "You spill down the stairs into Plush as the DJ drops the one song everyone pretends not to know every word of. Three Jägerbombs for a fiver. Your friends are already on the dancefloor. The gates, the keys, the thesis — none of it followed you here. The night is entirely, gloriously yours. 🪩",
   },
 ];
 
@@ -140,83 +141,143 @@ export const QUESTS = [
      enjoy a stranger reading, since the site URL is effectively public.
 ----------------------------------------------------------------------------- */
 export const NPCS = [
-  // ---- Historical / flavour NPCs ----
+  // ======================= HISTORICAL / FLAVOUR NPCS =======================
+  // All long dead, so fair game. Every anecdote below is rooted in real Wadham
+  // history — the tone is just... unimpressed. Walk up and press E to talk.
+
   {
     id: "porter",
     name: "The Porter",
     at: "gatetower",
-    colour: "#1b3a2f",
-    role: "gatekeeper",
+    colour: "#2f5d45",
+    role: "gatekeeper",         // opens the gate once you've got 3 keys + Bod card
     lines: [
-      "Lodge is shut, I'm afraid. No card, no exit.",
-      "Find your keys and your Bod card and we'll see.",
-      "Off to Tuesgays again? ...Mind how you go.",
+      "Lodge is shut. No Bod card, no exit. I don't make the rules — I just enforce them with quiet joy.",
+      "Three brass keys and your Bod card. Same shopping list as every soul who's tried to bunk out for Tuesgays since 2010.",
+      "Thinking of climbing the gate? Warden Bowra did it for thirty years. He's also the one who had it locked. Funny, that.",
     ],
   },
   {
     id: "dorothy",
-    name: "Dorothy Wadham (Founder)",
-    at: "chapel",
-    colour: "#5b4a7a",
+    name: "Dorothy Wadham, Foundress",
+    at: "chapel",               // she haunts the ante-chapel
+    colour: "#6b5a86",
     role: "oracle",
+    ghost: true,
     questGiver: "founders_blessing",
     lines: [
-      "I founded this place in 1610, you know. Built in three years flat.",
-      "I never set foot in Oxford in my life — ran it all by letter from Somerset.",
-      "Take my key, child. Go and enjoy yourself. The Hall will still be here Wednesday.",
+      "Dorothy Wadham. I founded this college in 1610 out of my late husband's will and ran it for eight years by post — from Somerset. I never once set foot in Oxford. Wouldn't start now.",
+      "Built in three years, paid to the penny, every brick accounted for by letter. Do you have ANY idea how hard it is to micromanage masons you've never met?",
+      "Yes, yes — take the chapel key. Go and dance. The Hall will still be here Wednesday, full of people pretending to read.",
     ],
   },
   {
     id: "wilkins",
     name: "Warden John Wilkins",
     at: "fellowsgarden",
-    colour: "#2f4f6f",
+    colour: "#3a6f9a",
     role: "questgiver",
     questGiver: "invisible_college",
     lines: [
-      "Find me Wren's apiary, his speaking statue and his artificial rainbow.",
-      "We met in this very garden — the meetings that became the Royal Society.",
-      "Reconvene the Invisible College and the garden key is yours.",
+      "John Wilkins, Warden. In the 1650s I had Boyle, Hooke, Locke and young Wren crammed into my lodgings doing 'experiments'. We called it the Invisible College. The fire brigade would've called it something else.",
+      "Wren left three toys in this garden: a glass beehive, a statue that talks, and an engine that makes rainbows. Find all three and the Royal Society reconvenes.",
+      "Do that and the garden key is yours. Mind the telescopes — there's a very good one bolted to the tower, and I'll know if you touch it.",
+    ],
+  },
+  {
+    id: "bowra",
+    name: "Warden Maurice Bowra",
+    at: "frontquad",            // holds court in the middle of his quad, naturally
+    colour: "#8a6a3a",
+    role: "oracle",
+    ghost: true,
+    lines: [
+      "Bowra. Warden here thirty-two years. Once caught a boy climbing in after hours — he hid behind my sofa for three hours while I read. I simply said, 'turn the lights off before you go, there's a good fellow.'",
+      "They say I had a 'waspish wit'. They say a great many things. Most of them to me, after I'd already finished insulting them.",
+      "Off to Tuesgays? In my day we called Tuesday 'Tuesday'. We were less honest, and far worse dressed.",
+    ],
+  },
+  {
+    id: "wren",
+    name: "Mr Christopher Wren",
+    at: "cloister",             // the cloister garden — a former cemetery, very on-brand for him
+    colour: "#3f7f7a",
+    role: "oracle",
+    ghost: true,
+    lines: [
+      "Christopher Wren. Undergraduate, then Savilian Professor of Astronomy — rooms just there. Yes, that Wren. No, I can't look at your leaking staircase, I'm reinventing the dome.",
+      "I built a transparent beehive so one could watch the bees toil without being stung. Then I built half of London. People only ever ask about the cathedral.",
+      "If you find my contraptions out in the garden, do tell Wilkins. He gets so dreadfully excitable.",
+    ],
+  },
+  {
+    id: "gardener",
+    name: "The Head Gardener",
+    at: "privategarden",
+    colour: "#4a5d2a",
+    role: "flavour",
+    lines: [
+      "Mind the borders. That mound? Royalist earthworks, 1642 — we dug in against Parliament and got a flower bed out of it. Had a statue of Atlas up top till the wind smashed him to bits in 1753.",
+      "Twelve species of bamboo over there, all planted to hide where a beech tree died of honey fungus. And a grapevine older than the Napoleonic wars — two hundred bunches last year, every one eaten at High Table. You'll not see a single grape.",
+      "Third-best tree collection in Oxford, this is. We do not discuss first and second.",
+    ],
+  },
+  {
+    id: "fresher",
+    name: "A Lost Fresher",
+    at: "frontquad",
+    colour: "#8a6fb0",
+    role: "flavour",
+    lines: [
+      "Is this... is this still Wadham? I've been hunting for my staircase since Michaelmas. Every range is an identical honey-coloured filing cabinet.",
+      "Someone told me the statues over the gate are the Founders, sat up there judging us. I believe it. They've got the exact face the Buttery staff make.",
+      "Tuesgays? Take me with you. Please. I went to one bop and now I have a whole personality.",
     ],
   },
 
-  // ---- YOUR FRIENDS (placeholders — edit these) ----
-  // TODO: replace name / at / colour / lines with real people & real anecdotes.
+  // ============================ YOUR FRIENDS ===============================
+  // role:"friend" — you must talk to ALL of them before the Tuesgays win.
+  // These are editable placeholders with Wadham-flavoured banter. Swap the
+  // name/at/colour/lines for your actual mates (ask them first — the URL is
+  // effectively public). Copy a block to add as many friends as you like.
+
   {
     id: "friend1",
-    name: "FRIEND 1",            // e.g. a flatmate — put them near the JCR or their staircase
+    name: "Cat",                // ← rename me. Drop near the JCR / their staircase.
     at: "jcr",
-    colour: "#a23b3b",
-    role: "friend",              // friends must all be spoken to for the Tuesgays win
+    colour: "#c0392b",
+    role: "friend",
     lines: [
-      "ANECDOTE LINE 1 — the running joke about this person.",
-      "ANECDOTE LINE 2 — a thing they always say.",
-      "Right, are we going or what? Grab the drink.",
+      "Cat. Yes, SU exec, yes, I'll have quoted a motion at you by midnight. We're the only Oxford college with a proper Students' Union and not a JCR, and I WILL die on that hill.",
+      "Pre-drinks are on the Penrose tiling by the bar. Roger Penrose designed it. Nobel Prize. We pour snakebite on it every single week.",
+      "And we are NOT leaving until they've played 'Free Nelson Mandela'. It's been college law since 1987. Non-negotiable. Constitutionally binding.",
     ],
   },
   {
     id: "friend2",
-    name: "FRIEND 2",            // e.g. drop someone in the Fellows' Garden or Back Quad
+    name: "Dev",                // ← rename me. Back Quad / the brutalist library.
     at: "backquad",
     colour: "#c98a2b",
     role: "friend",
     lines: [
-      "ANECDOTE LINE 1.",
-      "ANECDOTE LINE 2.",
+      "Dev. Finalist. I have now read the same paragraph of my thesis four hundred times and it gets measurably worse on each pass.",
+      "I basically live in the library — that concrete cliff from 1977. Brushed concrete, half-levels, Grade-II listed, spiritually a multi-storey car park.",
+      "Get me out of here. If I see one more footnote I'm defecting to the Royal Society of Lying Down.",
     ],
   },
   {
     id: "friend3",
-    name: "FRIEND 3",            // e.g. a musician friend works nicely at the Holywell Music Room
+    name: "Mò",                 // ← rename me. The Holywell Music Room works nicely.
     at: "holywell",
     colour: "#2b8a6b",
     role: "friend",
     lines: [
-      "ANECDOTE LINE 1.",
-      "ANECDOTE LINE 2.",
+      "Mò. Yes, in the Holywell Music Room — oldest purpose-built concert hall in Europe, 1748 — and they let undergrads in here to practise scales. Absolutely unhinged.",
+      "There's a harp in here nobody will admit to owning. Pluck it just right and apparently something happens. Allegedly. I've told no one.",
+      "Two ticks — let me finish pretending I can sight-read this, and then we are gone.",
     ],
   },
-  // ...copy this block for as many friends as you like.
+  // ...copy a friend block to add more. Each one is another person to rally.
 ];
 
 /* -----------------------------------------------------------------------------
