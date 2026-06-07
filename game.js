@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, STREET, TREES, POO } from './data.js';
+import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, WALLS, STREET, TREES, POO } from './data.js';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (id) => document.getElementById(id);
@@ -162,6 +162,7 @@ function initWorld() {
   (STEPS || []).forEach(buildStep);
   LOCATIONS.forEach(buildLocation);
   (FENCES || []).forEach(buildFence);
+  (WALLS || []).forEach(buildWall);
   buildStreet();
   commitInstances();
 
@@ -264,13 +265,13 @@ function buildGround() {
 
   // gravel path spines (the Plush street is built separately in buildStreet)
   addPatch(-11, 0, 22, 4, COL.gravel, 0.01);         // gate -> front quad
-  addPatch(21, 15, 10, 5, COL.gravel, 0.01);         // slype out of the Front Quad (SE)
-  addPatch(34, 28, 30, 7, COL.gravel, 0.01);         // front quad -> back quad run
-  addPatch(47, 36, 6, 16, COL.gravel, 0.01);         // into the Back Quad (N opening)
-  addPatch(13, -32, 6, 24, COL.gravel, 0.01);        // NE arch -> gardens
-  addPatch(28, -45, 40, 6, COL.gravel, 0.01);        // garden run toward the Fellows' Garden
-  addPatch(70, 53, 14, 26, COL.gravel, 0.01);        // back quad -> terrace steps
-  addPatch(84, 89, 8, 16, COL.gravel, 0.01);         // terrace steps down -> bar quad
+  addPatch(-13, 28, 6, 22, COL.gravel, 0.01);        // SW corner -> back quad
+  addPatch(13, 28, 6, 22, COL.gravel, 0.01);         // SE corner -> back quad
+  addPatch(13, -27, 8, 10, COL.gravel, 0.01);        // NE corner -> NORTH to the gardens (the path)
+  addPatch(13, -36, 8, 16, COL.gravel, 0.01);        // into the Cloister/Fellows garden
+  addPatch(40, 63, 52, 6, COL.gravel, 0.01);         // back quad -> Bar Quad, SOUTH of the AC/LSK
+  addPatch(28, 30, 8, 10, COL.gravel, 0.01);         // up to the terrace steps (NW of the AC)
+  addPatch(80, 44, 10, 12, COL.gravel, 0.01);        // Bar Quad -> terrace steps
 }
 
 function addPatch(x, z, w, d, color, y = 0.01) {
@@ -666,9 +667,9 @@ function buildPlush(L) {
 function buildModern(L) {
   const baseY = raisedBase(L), h = L.h || 12;
   // GLASS blocks (AC/LSK) read brighter & cooler than the stone ranges
-  const glass = !!L.glass, brick = !!L.brick;
+  const glass = !!L.glass, brick = !!L.brick, tint = L.tint || null;
   const m = new THREE.Mesh(new THREE.BoxGeometry(L.w, h, L.d),
-    new THREE.MeshLambertMaterial({ color: glass ? 0xbcc8d6 : brick ? COL.brick : 0x9a958a, flatShading: true }));
+    new THREE.MeshLambertMaterial({ color: glass ? (tint ? 0x9c7c5a : 0xbcc8d6) : brick ? COL.brick : 0x9a958a, flatShading: true }));
   m.position.set(L.x, baseY + h / 2, L.z); scene.add(m);
   addCollider(L.x, L.z, L.w, L.d);
   if (brick) {                              // Bowra: a solid brick block — ordinary windows + parapet, no glass curtain
@@ -680,9 +681,9 @@ function buildModern(L) {
   const along = L.w >= L.d ? 'x' : 'z';
   const cols = Math.max(2, Math.floor((along === 'x' ? L.w : L.d) / 3));
   const off = (along === 'x' ? L.d : L.w) / 2 + 0.05;
-  const glassMat = new THREE.MeshBasicMaterial({ color: glass ? 0x4a6f93 : 0x213348, toneMapped: false });
-  const litMat = new THREE.MeshBasicMaterial({ color: glass ? 0xd6ecff : 0xbfe0ff, toneMapped: false });
-  const litP = glass ? 0.55 : 0.4;
+  const glassMat = new THREE.MeshBasicMaterial({ color: glass ? (tint || 0x4a6f93) : 0x213348, toneMapped: false });
+  const litMat = new THREE.MeshBasicMaterial({ color: glass ? (tint ? 0xdcb482 : 0xd6ecff) : 0xbfe0ff, toneMapped: false });
+  const litP = glass ? 0.5 : 0.4;
   for (let s = -1; s <= 1; s += 2)
     for (let r = 0; r < Math.max(2, Math.round(h / 3.5)); r++)
       for (let c = 0; c < cols; c++) {
@@ -762,6 +763,41 @@ function buildFence(f) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.5, 6), stoneMat(0x14161c));
     post.position.set(px, floorYAt(px, pz) + 0.75, pz); scene.add(post);
   }
+}
+
+/* authored stone WALLS — one continuous garden/perimeter wall built from
+   segments (no doubled walls). A segment with locked:true becomes a wrought-iron
+   gate registered for key-unlock (same mechanic as the old garden gates). */
+function buildWall(seg) {
+  if (seg.locked) { addLockedWallGate(seg); return; }
+  const H = seg.h || 2.8;
+  const m = new THREE.Mesh(new THREE.BoxGeometry(seg.w, H, seg.d), stoneMat(COL.stoneDark));
+  m.position.set(seg.x, H / 2, seg.z); scene.add(m);
+  addCollider(seg.x, seg.z, seg.w, seg.d);
+  const along = seg.w >= seg.d ? 'x' : 'z', len = along === 'x' ? seg.w : seg.d;
+  const n = Math.max(1, Math.round(len / 1.6));
+  for (let i = 0; i <= n; i++) {                 // crenel coping
+    const t = i / n - 0.5;
+    ctx.crenels.push({ x: seg.x + (along === 'x' ? t * seg.w : 0), y: H + 0.1, z: seg.z + (along === 'z' ? t * seg.d : 0) });
+  }
+}
+
+function addLockedWallGate(seg) {
+  const H = 2.8, grp = new THREE.Group();
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(seg.w, H, seg.d),
+    new THREE.MeshLambertMaterial({ color: 0x20242e, flatShading: true }));
+  leaf.position.set(seg.x, H / 2, seg.z); grp.add(leaf);
+  const along = seg.w >= seg.d ? 'x' : 'z', span = along === 'x' ? seg.w : seg.d, n = Math.max(2, Math.round(span / 0.8));
+  for (let i = 0; i <= n; i++) {                 // vertical bars
+    const t = i / n - 0.5;
+    const bx = seg.x + (along === 'x' ? t * seg.w : 0), bz = seg.z + (along === 'z' ? t * seg.d : 0);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, H, 6), stoneMat(0x474d5a));
+    bar.position.set(bx, H / 2, bz); grp.add(bar);
+  }
+  scene.add(grp);
+  const collider = { minX: seg.x - seg.w / 2, maxX: seg.x + seg.w / 2, minZ: seg.z - seg.d / 2, maxZ: seg.z + seg.d / 2 };
+  colliders.push(collider);
+  lockedGates.push({ x: seg.x, z: seg.z, key: seg.key, name: seg.name || 'Garden', collider, mesh: grp, open: false });
 }
 
 /* the player's floor height at (x,z): raised on a terrace, with a ramp on the
@@ -881,10 +917,11 @@ function commitLamps() {
   // also line the main paths with lamps
   const extra = [
     { x: -22, z: 6 }, { x: -22, z: -6 }, { x: -2, z: 8 },
-    { x: 21, z: 15 }, { x: 37, z: 28 }, { x: 50, z: 40 },        // slype run to the Back Quad
-    { x: 70, z: 46 }, { x: 70, z: 60 }, { x: 84, z: 86 },        // terrace steps up & down
-    { x: 13, z: -28 }, { x: 30, z: -46 },                        // NE arch -> Fellows' Garden
-    { x: -20, z: -64 }, { x: 35, z: -116 },                      // locked-garden gates
+    { x: -13, z: 30 }, { x: 13, z: 30 },                         // corners -> Back Quad
+    { x: 40, z: 64 }, { x: 60, z: 64 },                          // passage to the Bar (S of AC)
+    { x: 30, z: 30 }, { x: 80, z: 44 },                          // terrace steps (NW + from bar)
+    { x: 13, z: -26 }, { x: 13, z: -40 },                        // north path into the gardens
+    { x: -30, z: -66 }, { x: 13, z: -90 },                       // locked-garden gates
   ];
   const lamps = ctx.lamps.concat(extra);
   if (!lamps.length) return;
