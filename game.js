@@ -9,7 +9,7 @@
 
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
-import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, WALLS, LINTELS, FURNITURE, STREET, TREES, POO } from './data.js';
+import { CONFIG, LOCATIONS, ITEMS, QUESTS, NPCS, RAISED, STEPS, FENCES, WALLS, LINTELS, FURNITURE, STREET, TREES, POO, SCOOTERS } from './data.js';
 
 /* ------------------------------------------------------------------ helpers */
 const $ = (id) => document.getElementById(id);
@@ -78,7 +78,9 @@ let started = false;
 
 const PLAYER = { h: 1.7, r: 0.55, speed: 5.4, run: 8.6, reach: 3.4 };
 const BOUNDARY = { minX: -95, maxX: 112, minZ: -152, maxZ: 118 };
-const fx = { ket: 0, elf: 0, poo: 0, drunk: 0, khole: 0, choir: 0, floorY: 1.7 };   // effect timers / state
+const fx = { ket: 0, elf: 0, poo: 0, drunk: 0, khole: 0, choir: 0, coke: 0, beauty: 0, immune: 0, floorY: 1.7 };   // effect timers / state
+const plushLights = [];               // animated club lights inside Plush
+const plushDancers = [];              // friend duplicates on the Plush dancefloor
 
 /* ============================================================================
    BOOT — passphrase splash, then the start overlay (pointer lock needs a click)
@@ -165,6 +167,7 @@ function initWorld() {
   (WALLS || []).forEach(buildWall);
   (LINTELS || []).forEach(buildLintel);
   (FURNITURE || []).forEach(buildFurniture);
+  (SCOOTERS || []).forEach(buildScooter);
   buildStreet();
   commitInstances();
 
@@ -302,7 +305,30 @@ function buildQuad(L) {
   // grass lawn, inset from the surrounding ranges (lifted if the quad is raised)
   const by = floorYAt(L.x, L.z);
   addPatch(L.x, L.z, L.w - 6, L.d - 6, COL.lawn, by + 0.012);
+  if (L.keepoff) buildKeepOff(L, by);       // an off-limits central lawn (walk the perimeter path)
   if (L.ring) buildRing(L);                 // the Front Quad's continuous medieval ring
+}
+
+/* a fenced-off central lawn you're not allowed on (a low kerb + a "keep off"
+   collider). You walk the gravel perimeter path around it. */
+function buildKeepOff(L, by) {
+  const k = L.keepoff, s = 2 * k;
+  // a slightly raised, manicured lawn mound
+  const mound = new THREE.Mesh(new THREE.BoxGeometry(s, 0.28, s),
+    new THREE.MeshLambertMaterial({ color: 0x1b3d23, flatShading: true }));
+  mound.position.set(L.x, by + 0.14, L.z); scene.add(mound);
+  // a low stone kerb round the edge (four rails) — purely visual
+  const kerbMat = stoneMat(COL.stoneDark);
+  [[0, -k, s + 0.4, 0.4], [0, k, s + 0.4, 0.4], [-k, 0, 0.4, s + 0.4], [k, 0, 0.4, s + 0.4]].forEach(([dx, dz, w, d]) => {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(w, 0.45, d), kerbMat);
+    r.position.set(L.x + dx, by + 0.22, L.z + dz); scene.add(r);
+  });
+  // a little sundial in the middle for flavour
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 1.1, 8), kerbMat);
+  post.position.set(L.x, by + 0.55, L.z); scene.add(post);
+  const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.08, 12), stoneMat(COL.crenel));
+  dial.position.set(L.x, by + 1.15, L.z); scene.add(dial);
+  addCollider(L.x, L.z, s, s);              // can't walk on it
 }
 
 /* The Front Quad as ONE continuous medieval quadrangle: a closed crenellated
@@ -645,35 +671,124 @@ function buildTerrace(L) {
   for (let i = 0; i < 8; i++) ctx.lamps.push({ x: L.x, z: L.z - L.d / 2 + (i + 0.5) * L.d / 8 });
 }
 
+/* PLUSH — an actual enterable nightclub: a dark room with a VERY low ceiling,
+   coded animated club lights, a disco ball, and your friends already dancing.
+   The entrance is on the EAST side (facing the street from college). You win by
+   walking inside (to the dancefloor goal). */
 function buildPlush(L) {
-  // the club itself
-  const club = new THREE.Mesh(new THREE.BoxGeometry(L.w, L.h, L.d),
-    new THREE.MeshLambertMaterial({ color: 0x2a1740, emissive: 0x1c0f2c, flatShading: true }));
-  club.position.set(L.x, L.h / 2, L.z); scene.add(club);
-  addCollider(L.x, L.z, L.w, L.d);
-  addWindows(L.x, L.z, L.w, L.d, L.h, 2);   // a couple of lit windows so it reads as a building, not a void
+  const cx = L.x, cz = L.z;
+  const RW = 20, RD = 18, CH = 3.0, WT = 0.6;       // room w/d, LOW ceiling, wall thickness
+  const x0 = cx - RW / 2, x1 = cx + RW / 2, z0 = cz - RD / 2, z1 = cz + RD / 2;
+  const ex = x1;                                    // east face = the entrance
+  const doorHalf = 1.9;
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0x180a26, emissive: 0x0e0618, flatShading: true });
 
-  const ex = L.x + L.w / 2;                 // entrance faces the gate (east / +X)
-  const door = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 3.2),
-    new THREE.MeshBasicMaterial({ color: 0xff4fd8, transparent: true, opacity: 0.92, fog: false, toneMapped: false }));
-  door.rotation.y = Math.PI / 2; door.position.set(ex + 0.06, 1.7, L.z); scene.add(door);
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(6.4, 2),
-    new THREE.MeshBasicMaterial({ map: textTex('PLUSH ▾', '#ff4fd8', 60), transparent: true, fog: false, toneMapped: false }));
-  sign.rotation.y = Math.PI / 2; sign.position.set(ex + 0.1, L.h + 1.4, L.z); scene.add(sign);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex('#ff7fe0'), color: 0xff4fd8,
-    transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-  glow.scale.set(15, 15, 1); glow.position.set(ex + 1, 2.6, L.z); scene.add(glow);
-  const plight = new THREE.PointLight(COL.neon, 7, 36, 2); plight.position.set(ex + 2, 3, L.z); scene.add(plight);
-  const pool = new THREE.Mesh(new THREE.PlaneGeometry(18, 18),
-    new THREE.MeshBasicMaterial({ map: radialTex('#ff4fd8'), transparent: true, opacity: 0.4,
-      blending: THREE.AdditiveBlending, depthWrite: false }));
-  pool.rotation.x = -Math.PI / 2; pool.position.set(ex + 4, 0.05, L.z); scene.add(pool);
-  for (let i = 0; i < 4; i++) {                    // velvet-rope bollards
-    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.0, 8), stoneMat(0x2a2a34));
-    b.position.set(ex + 3.5 + (i % 2) * 2.4, 0.5, L.z - 3 + i * 2); scene.add(b);
+  const wall = (wx, wz, ww, wd) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(ww, CH + 0.6, wd), wallMat);
+    m.position.set(wx, (CH + 0.6) / 2, wz); scene.add(m);
+    addCollider(wx, wz, ww, wd);
+  };
+  wall(cx, z0, RW + WT, WT);                        // north wall
+  wall(cx, z1, RW + WT, WT);                        // south wall
+  wall(x0, cz, WT, RD + WT);                        // west wall
+  // east wall split for the doorway
+  const segD = (RD - doorHalf * 2) / 2;
+  wall(ex, cz - doorHalf - segD / 2, WT, segD);
+  wall(ex, cz + doorHalf + segD / 2, WT, segD);
+
+  // the LOW dark ceiling slab
+  const ceil = new THREE.Mesh(new THREE.BoxGeometry(RW + WT, 0.5, RD + WT),
+    new THREE.MeshLambertMaterial({ color: 0x0a0512, flatShading: true }));
+  ceil.position.set(cx, CH + 0.25, cz); scene.add(ceil);
+
+  // a black, faintly reflective dancefloor + a grid of glowing tiles
+  addPatch(cx, cz, RW - 0.8, RD - 0.8, 0x07030d, 0.02);
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) {
+    const tx = cx - 6 + i * 3, tz = cz - 6 + j * 3;
+    const tile = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4),
+      new THREE.MeshBasicMaterial({ color: 0x2a0d44, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+    tile.rotation.x = -Math.PI / 2; tile.position.set(tx, 0.05, tz); scene.add(tile);
+    plushLights.push({ kind: 'tile', mesh: tile, phase: (i + j) * 0.7 });
   }
 
-  L._goalPos = new THREE.Vector3(ex + 4, 0, L.z);   // stand here to enter (the street is built in buildStreet)
+  // coded club lights: a ring of colour-cycling point lights up by the ceiling
+  const HUES = [0xff2d8d, 0x2db7ff, 0x8a2dff, 0x2dff9c, 0xffd02d, 0xff5a2d];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const lx = cx + Math.cos(a) * 6.5, lz = cz + Math.sin(a) * 5.5;
+    const pl = new THREE.PointLight(HUES[i], 6, 16, 2);
+    pl.position.set(lx, CH - 0.4, lz); scene.add(pl);
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6),
+      new THREE.MeshBasicMaterial({ color: HUES[i], toneMapped: false }));
+    bulb.position.copy(pl.position); scene.add(bulb);
+    plushLights.push({ kind: 'spot', light: pl, bulb, phase: i, base: HUES[i] });
+  }
+
+  // a disco ball, slowly turning, scattering little light sprites
+  const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7, 1),
+    new THREE.MeshStandardMaterial({ color: 0xcfd6e0, metalness: 1, roughness: 0.2, emissive: 0x223040 }));
+  ball.position.set(cx, CH - 0.7, cz); scene.add(ball);
+  plushLights.push({ kind: 'ball', mesh: ball });
+
+  // a DJ booth on the west wall
+  const booth = new THREE.Mesh(new THREE.BoxGeometry(4, 1.1, 1.4), stoneMat(0x14121a));
+  booth.position.set(x0 + 1.6, 0.55, cz); scene.add(booth); addCollider(x0 + 1.6, cz, 4, 1.4);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.1, 1.0),
+    new THREE.MeshBasicMaterial({ color: 0xff2d8d, toneMapped: false }));
+  deck.position.set(x0 + 1.6, 1.12, cz); scene.add(deck);
+
+  // YOUR FRIENDS, already on the dancefloor (a duplicate of every friend NPC)
+  const friends = NPCS.filter((d) => d.role === 'friend');
+  friends.forEach((d, i) => {
+    const fig = npcFigure(d);
+    fig.scale.multiplyScalar(0.96);
+    const a = (i / friends.length) * Math.PI * 2;
+    const fx2 = cx - 1 + Math.cos(a) * (3.2 + (i % 3)), fz2 = cz + Math.sin(a) * (3.0 + (i % 2));
+    fig.position.set(fx2, 0, fz2); scene.add(fig);
+    plushDancers.push({ group: fig, baseX: fx2, baseZ: fz2, phase: i * 0.9, body: fig.userData.body, head: fig.userData.head });
+  });
+
+  // ---- exterior so it READS as a club from the street: neon facade + sign ----
+  const facade = new THREE.Mesh(new THREE.BoxGeometry(0.3, CH + 0.6, RD + WT),
+    new THREE.MeshLambertMaterial({ color: 0x241036, emissive: 0x2a0f44, flatShading: true }));
+  facade.position.set(ex + 0.35, (CH + 0.6) / 2, cz); scene.add(facade);
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(doorHalf * 2 + 0.4, CH),
+    new THREE.MeshBasicMaterial({ color: 0xff2d8d, transparent: true, opacity: 0.55, fog: false, toneMapped: false, side: THREE.DoubleSide }));
+  door.rotation.y = Math.PI / 2; door.position.set(ex + 0.52, CH / 2, cz); scene.add(door);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.1),
+    new THREE.MeshBasicMaterial({ map: textTex('PLUSH ▾', '#ff4fd8', 60), transparent: true, fog: false, toneMapped: false }));
+  sign.rotation.y = Math.PI / 2; sign.position.set(ex + 0.6, CH + 1.6, cz); scene.add(sign);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: radialTex('#ff7fe0'), color: 0xff4fd8,
+    transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  glow.scale.set(18, 18, 1); glow.position.set(ex + 3, 3, cz); scene.add(glow);
+  const plight = new THREE.PointLight(COL.neon, 9, 44, 2); plight.position.set(ex + 3, 3.2, cz); scene.add(plight);
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(22, 22),
+    new THREE.MeshBasicMaterial({ map: radialTex('#ff4fd8'), transparent: true, opacity: 0.4,
+      blending: THREE.AdditiveBlending, depthWrite: false }));
+  pool.rotation.x = -Math.PI / 2; pool.position.set(ex + 5, 0.05, cz); scene.add(pool);
+  for (let i = 0; i < 4; i++) {                    // velvet-rope bollards leading to the door
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 1.0, 8), stoneMat(0x2a2a34));
+    b.position.set(ex + 2.5 + (i % 2) * 2.6, 0.5, cz - 3 + i * 2); scene.add(b);
+  }
+
+  L._goalPos = new THREE.Vector3(cx + 2, 0, cz);   // INSIDE the room — you must walk in to win
+}
+
+/* a Voi e-scooter abandoned in the street (decor, no collider) */
+function buildScooter(s) {
+  const g = new THREE.Group();
+  const coral = new THREE.MeshLambertMaterial({ color: 0xff5a5f, flatShading: true });
+  const dark = stoneMat(0x191920);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.09, 0.24), coral); deck.position.y = 0.2; g.add(deck);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 1.05, 6), dark);
+  stem.position.set(0.44, 0.66, 0); stem.rotation.z = -0.16; g.add(stem);
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.52), dark); bar.position.set(0.52, 1.12, 0); g.add(bar);
+  [-0.42, 0.42].forEach((dx) => {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.08, 12), dark);
+    w.rotation.x = Math.PI / 2; w.position.set(dx, 0.16, 0); g.add(w);
+  });
+  g.position.set(s.x, floorYAt(s.x, s.z), s.z); g.rotation.y = s.rot || 0; scene.add(g);
 }
 
 /* --- modern buildings: pale ashlar + big glass (AC, Library, Bowra) ------ */
@@ -1016,18 +1131,36 @@ function findOpenSpot(x, z, pad = 1.0) {
   return { x, z };
 }
 
+// accessible (un-gated, ground-level) locations the random items can scatter to
+const SCATTER_POOL = ['frontquad', 'backquad', 'fellowsgarden', 'cloister', 'barquad'];
+function randomScatterSpot() {
+  for (let tries = 0; tries < 40; tries++) {
+    const L = loc(SCATTER_POOL[Math.floor(Math.random() * SCATTER_POOL.length)]); if (!L) continue;
+    const rx = L.x + (Math.random() - 0.5) * (L.w - 5);
+    const rz = L.z + (Math.random() - 0.5) * (L.d - 5);
+    if (!collidesAt(rx, rz, 0.8)) return { x: rx, z: rz };
+  }
+  const f = loc('backquad'); return findOpenSpot(f.x, f.z, 0.8);
+}
+
 function spawnPickups() {
   const perLoc = {};
   ITEMS.forEach((it) => {
     if (!it.foundAt) return;                 // reward items are granted by quests
-    const L = loc(it.foundAt); if (!L) return;
-    const n = (perLoc[it.foundAt] = (perLoc[it.foundAt] || 0) + 1);
-    const ang = n * 2.2, rad = 2 + n * 1.4;
-    const spot = findOpenSpot(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad, 0.7);
+    let spot;
+    if (it.random) {                         // SCATTER to a random accessible spot (harder each game)
+      spot = randomScatterSpot();
+    } else {
+      const L = loc(it.foundAt); if (!L) return;
+      const n = (perLoc[it.foundAt] = (perLoc[it.foundAt] || 0) + 1);
+      const ang = n * 2.2, rad = 2 + n * 1.4;
+      spot = findOpenSpot(L.x + Math.cos(ang) * rad, L.z + Math.sin(ang) * rad, 0.7);
+    }
     const mesh = CURIOSITY[it.id] ? curiosityMesh(it.id) : pickupMesh(it.id);
     const by = floorYAt(spot.x, spot.z) + 1.0;   // sit on the floor (incl. raised quads like the Bar)
     mesh.position.set(spot.x, by, spot.z);
     mesh.userData.base = by;
+    it._pos = new THREE.Vector3(spot.x, 0, spot.z);   // so the compass/beacon still points true
     scene.add(mesh);
     pickups.push({ item: it, mesh, taken: false });
   });
@@ -1264,6 +1397,9 @@ function runAction(action, n) {
     case 'givegame': giveItem('game'); break;
     case 'dog': beep('friend'); if (n && n.group.userData.tail) n.group.userData.tail.userData.wag = 1.4; break;
     case 'singer': break;   // Finn's singing is ambient (see the audio section)
+    case 'coke':   fx.coke = 30; state.flags.add('pow_coke'); beep('friend'); toast("BT1's little bump kicks in — everything SPEEDS UP. You are a greyhound. (speed boost)"); evaluateQuests(); updateHUD(); break;
+    case 'beauty': fx.beauty = 1e9; state.flags.add('pow_beauty'); beep('friend'); toast("BT2 does your eyebrows. You feel DEVASTATINGLY beautiful. It radiates off you."); evaluateQuests(); updateHUD(); break;
+    case 'potion': fx.immune = 1e9; state.flags.add('pow_potion'); beep('friend'); toast("BT3's health potion burns going down. Arran's ket can't touch you now. (immune)"); evaluateQuests(); updateHUD(); break;
   }
 }
 function ketamine(sec = 26, msg) { fx.ket = sec; beep('gate'); toast(msg || "You take the bump. The edges of Wadham begin to… breathe."); }
@@ -1278,8 +1414,13 @@ function updateVillain(dt) {
   const dist = Math.hypot(dx, dz) || 1;
   v.retreat = Math.max(0, (v.retreat || 0) - dt);
   v.cooldown = Math.max(0, (v.cooldown || 0) - dt);
+  // BT3's health potion makes you immune — Arran's ket bounces off
+  if (fx.immune > 0 && dist < 2.3 && v.cooldown <= 0) {
+    v.cooldown = 6; v.retreat = 2.5;
+    beep('talk'); toast("Arran lunges with a bump — but BT3's potion shrugs it right off. Immune. 😎");
+  }
   // close-contact bump — only at very short range
-  if (v.retreat <= 0 && v.cooldown <= 0 && fx.khole <= 0 && dist < 2.3) {
+  if (v.retreat <= 0 && v.cooldown <= 0 && fx.khole <= 0 && fx.immune <= 0 && dist < 2.3) {
     v.hits = (v.hits || 0) + 1;
     if (v.hits >= 3) {                            // THIRD hit → a full K-hole, then a random respawn
       v.hits = 0; fx.khole = 58; fx.ket = 0;
@@ -1306,7 +1447,7 @@ function updateVillain(dt) {
 
 /* drive the screen-effect overlays from the fx timers (CSS does the visuals) */
 function applyFx(dt) {
-  ['ket', 'elf', 'poo', 'drunk'].forEach((k) => { if (fx[k] > 0) fx[k] = Math.max(0, fx[k] - dt); });
+  ['ket', 'elf', 'poo', 'drunk', 'coke', 'beauty', 'immune'].forEach((k) => { if (fx[k] > 0) fx[k] = Math.max(0, fx[k] - dt); });
   if (fx.khole > 0) { fx.khole = Math.max(0, fx.khole - dt); if (fx.khole === 0) respawnRandom(); }   // ...come to, somewhere random
   const v = $('view');
   if (v) {
@@ -1314,6 +1455,8 @@ function applyFx(dt) {
     v.classList.toggle('ket', fx.ket > 0 && fx.khole <= 0);
     v.classList.toggle('elf', fx.elf > 0);
     v.classList.toggle('drunk', fx.drunk > 0 && fx.ket <= 0 && fx.khole <= 0);   // ket / khole take visual priority
+    v.classList.toggle('coke', fx.coke > 0);       // speed-rush vignette
+    v.classList.toggle('beauty', fx.beauty > 0);   // beautiful golden glow
   }
   const p = $('poo'); if (p) p.classList.toggle('show', fx.poo > 0);
 }
@@ -1330,6 +1473,72 @@ function respawnRandom() {
   const fy = floorYAt(spot.x, spot.z) + PLAYER.h;
   camera.position.set(spot.x, fy, spot.z); fx.floorY = fy;
   beep('friend'); toast("You come to, slumped somewhere new. You have absolutely no idea where you are.");
+}
+
+/* ---- the ROAMING garden porter: patrols the gardens; if he sees you in a
+   LOCKED garden (Warden's or Private) he frog-marches you back to college ---- */
+const PORTER_WAYPOINTS = [
+  { x: 13, z: -38 }, { x: 13, z: -70 }, { x: -10, z: -64 }, { x: 40, z: -10 },
+  { x: 48, z: -50 }, { x: 30, z: -82 }, { x: 13, z: -26 },
+];
+function insideLoc(id, p) {
+  const L = loc(id); return L && Math.abs(p.x - L.x) < L.w / 2 && Math.abs(p.z - L.z) < L.d / 2;
+}
+let _porterToastT = -99;
+function updateRoamingPorter(dt, t) {
+  const rp = npcs.find((n) => n.def.roamer); if (!rp) return;
+  // wander between garden waypoints
+  if (!rp.target || Math.hypot(rp.baseX - rp.target.x, rp.baseZ - rp.target.z) < 2)
+    rp.target = PORTER_WAYPOINTS[Math.floor(Math.random() * PORTER_WAYPOINTS.length)];
+  const dx = rp.target.x - rp.baseX, dz = rp.target.z - rp.baseZ, d = Math.hypot(dx, dz) || 1;
+  const spd = 2.4;
+  let nx = rp.baseX + dx / d * spd * dt, nz = rp.baseZ + dz / d * spd * dt;
+  if (collidesAt(nx, rp.baseZ, 0.5)) { nx = rp.baseX; rp.target = null; }
+  if (collidesAt(rp.baseX, nz, 0.5)) { nz = rp.baseZ; rp.target = null; }
+  rp.baseX = nx; rp.baseZ = nz; rp.by = floorYAt(nx, nz);
+  rp.group.position.set(nx, rp.by, nz);
+  rp.group.lookAt(rp.target ? rp.target.x : nx + dx, rp.by, rp.target ? rp.target.z : nz + dz);
+  rp.label.position.set(nx, rp.by + 2.5, nz);
+  // trespass check — in a locked garden + within sight
+  const p = camera.position;
+  const trespassing = insideLoc('wardensgarden', p) || insideLoc('privategarden', p);
+  if (trespassing && Math.hypot(p.x - nx, p.z - nz) < 26) {
+    rp.caught = (rp.caught || 0) + dt;
+    if (t - _porterToastT > 3 && rp.caught < 2.6) { _porterToastT = t; toast("The garden porter has spotted you — get OUT of the locked garden!"); }
+    if (rp.caught > 2.6) { rp.caught = 0; dragBackToCollege(); }
+  } else rp.caught = Math.max(0, (rp.caught || 0) - dt * 0.6);
+}
+function dragBackToCollege() {
+  const f = loc('frontquad'); const spot = findOpenSpot(f.x - 14, f.z, 0.7);
+  const fy = floorYAt(spot.x, spot.z) + PLAYER.h;
+  camera.position.set(spot.x, fy, spot.z); fx.floorY = fy;
+  beep('gate'); toast("Caught trespassing! The garden porter frog-marches you all the way back to the Front Quad.");
+}
+
+/* ---- animate the Plush club lights + the friends on the dancefloor ------- */
+const _plC = new THREE.Color();
+function updatePlush(t, dt) {
+  if (!plushLights.length) return;
+  for (const l of plushLights) {
+    if (l.kind === 'spot') {
+      const hue = (t * 0.12 + l.phase / 6) % 1;
+      _plC.setHSL(hue, 1, 0.55); l.light.color.copy(_plC); l.bulb.material.color.copy(_plC);
+      l.light.intensity = 4 + Math.abs(Math.sin(t * 4 + l.phase)) * 5;       // pulse to the beat
+    } else if (l.kind === 'tile') {
+      const hue = (t * 0.2 + l.phase) % 1;
+      _plC.setHSL(hue, 1, 0.5); l.mesh.material.color.copy(_plC);
+      l.mesh.material.opacity = 0.25 + Math.abs(Math.sin(t * 3 + l.phase * 3)) * 0.55;
+    } else if (l.kind === 'ball') {
+      l.mesh.rotation.y += dt * 0.8;
+    }
+  }
+  for (const dncr of plushDancers) {                                          // friends bopping
+    const b = Math.abs(Math.sin(t * 3 + dncr.phase)) * 0.18;
+    if (dncr.body) dncr.body.position.y = 0.85 + b;
+    if (dncr.head) dncr.head.position.y = 1.7 + b;
+    dncr.group.rotation.y = Math.sin(t * 1.5 + dncr.phase) * 0.5;
+    dncr.group.position.y = b * 0.4;
+  }
 }
 
 /* dialogue --------------------------------------------------------------- */
@@ -1397,6 +1606,12 @@ function linesForNPC(n) {
 
   // --- the Porter / gatekeeper: opens the gate when you're ready ---
   if (d.role === 'gatekeeper') {
+    // report the intruder, Dylan Wright, if you've found him
+    if (state.flags.has('dylan_seen') && !state.done.has('report_dylan')) {
+      completeQuest(quest('report_dylan'));
+      out.push("Dylan Wright? Broken in over the Bowra AGAIN? That little menace. Thank you — I'll see him off.");
+      out.push("Owe you one for that. Now, about your own exit…");
+    }
     const main = QUESTS.find((q) => q.type === 'main');
     if (main && !state.flags.has('gate_open')) {
       const need = (main.requires || []).filter((r) => !hasReq(r));
@@ -1420,6 +1635,17 @@ function linesForNPC(n) {
     if (!n.talked) { n.talked = true; state.talked.add(d.id); beep('friend'); toast(`${d.name} is in!`); evaluateQuests(); updateHUD(); }
     out.push(...d.lines);
     out.push(seeYouAtPlush());
+    return out;
+  }
+
+  // --- Dylan Wright, the intruder: discovering him starts the report quest ---
+  if (d.id === 'dylan') {
+    out.push(...d.lines);
+    if (!state.flags.has('dylan_seen')) {
+      state.flags.add('dylan_seen');
+      if (!state.active.has('report_dylan')) { state.active.add('report_dylan'); updateLog(); }
+      beep('quest'); toast('Dylan Wright has broken in! Report him to the Porter at the Lodge.');
+    }
     return out;
   }
 
@@ -1482,6 +1708,8 @@ function updateLockedGates(t) {
 /* re-evaluate quest-driven world state */
 function evaluateQuests() {
   // mark side quests active once their giver has been met is handled in dialogue.
+  const bl = quest('the_blessings');                 // auto-completes when all 3 powers are held
+  if (bl && !state.done.has(bl.id) && (bl.requires || []).every(hasReq)) completeQuest(bl);
   checkWin();
 }
 
@@ -1521,7 +1749,28 @@ function updateHUD(force) {
   // objective text
   const o = currentObjective();
   $('obj-text').textContent = o.text;
+  renderWallet();
   updateLog();
+}
+
+/* the WALLET — a persistent checklist of everything you need to get into Plush.
+   Items you don't have yet are translucent; obtained ones light up and tick off. */
+function renderWallet() {
+  const w = $('wallet'); if (!w) return;
+  const friends = NPCS.filter((x) => x.role === 'friend');
+  const got = friends.filter((x) => state.talked.has(x.id)).length;
+  const rows = [
+    { icon: '🗝️', label: 'Bar key',       have: hasReq('key_bar') },
+    { icon: '🗝️', label: 'Garden key',    have: hasReq('key_garden') },
+    { icon: '🗝️', label: 'Chapel key',    have: hasReq('key_chapel') },
+    { icon: '🪪', label: 'Bod card',       have: hasReq('bodcard') },
+    { icon: '🚪', label: 'Gate open',      have: state.flags.has('gate_open') },
+    { icon: '🍹', label: 'College drink',  have: hasReq('collegedrink') },
+    { icon: '👯', label: `Friends ${got}/${friends.length}`, have: got >= friends.length },
+  ];
+  w.innerHTML = '<div class="wallet-h">TO GET TO PLUSH</div>' + rows.map((r) =>
+    `<div class="w-item ${r.have ? 'have' : 'need'}"><span class="w-ic">${r.icon}</span><span class="w-lb">${r.label}</span><span class="w-ck">${r.have ? '✓' : '○'}</span></div>`
+  ).join('');
 }
 
 function chipIcon(id) {
@@ -1566,6 +1815,7 @@ function targetForId(npcId) { const n = NPCS.find((x) => x.id === npcId); return
 function targetForNPC(def) { const L = loc(def.at); return L ? new THREE.Vector3(L.x, 0, L.z) : null; }
 function targetForReq(id) {
   const it = item(id);
+  if (it && it._pos) return it._pos;                 // scattered item — point at where it actually landed
   if (it && it.foundAt) { const L = loc(it.foundAt); return L ? new THREE.Vector3(L.x, 0, L.z) : null; }
   // reward item -> point at its quest giver
   const q = QUESTS.find((qq) => (qq.unlocks || []).includes(id));
@@ -1724,7 +1974,10 @@ function updatePlayer(dt) {
     if (isTouch) { s += move.x; f -= move.y; }
   }
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  const sp = (sprint ? PLAYER.run : PLAYER.speed) * (fx.ket > 0 ? 0.68 : 1) * (fx.drunk > 0 ? 0.82 : 1) * (fx.khole > 0 ? 0.3 : 1);   // ket/drink/khole = woozy
+  const sp = (sprint ? PLAYER.run : PLAYER.speed)
+    * (fx.ket > 0 ? 0.68 : 1) * (fx.drunk > 0 ? 0.82 : 1) * (fx.khole > 0 ? 0.3 : 1)
+    * (fx.poo > 0 ? 0.55 : 1)            // Maggie Mae's poo gums up your shoe — you trudge
+    * (fx.coke > 0 ? 1.65 : 1);          // BT1's bump = speed boost
 
   // forward/right from camera yaw (flattened)
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0;
@@ -1870,6 +2123,8 @@ function tick() {
 
   if (running && !dialogue.open) updatePlayer(dt);
   if (running && !dialogue.open) updateVillain(dt);     // Arran prowls
+  if (running && !dialogue.open) updateRoamingPorter(dt, t);   // the garden porter patrols
+  updatePlush(t, dt);                                  // club lights + dancers always animate
 
   // touch look applies each frame
   if (isTouch) camera.rotation.set(look.pitch, look.yaw, 0, 'YXZ');

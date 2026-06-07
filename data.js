@@ -34,7 +34,7 @@ export const CONFIG = {
   passphrasePrompt: "Whisper the password to the Porter:",
   timeOfDay: "night",
 
-  startPosition: { x: -6, z: 0 },
+  startPosition: { x: -15, z: 0 },   // on the perimeter path (the central grass is off-limits)
   startFacing: "west",
 
   friendsNeeded: 10,
@@ -61,6 +61,7 @@ export const LOCATIONS = [
   // ============ FRONT QUAD — ONE continuous medieval ring ============
   // Gaps: W gate, S×2 corners (→ Back Quad), N (a TUNNEL through the range → gardens).
   { id: "frontquad",  name: "Front Quad",          type: "quad",   x: 0, z: 0, w: 38, d: 38,
+      keepoff: 11,   // an off-limits central lawn (you walk the perimeter path around it)
       ring: { t: 5, h: 13, gaps: [
         { side: "w", at: 0,   width: 7 },
         { side: "s", at: -13, width: 6, arch: true },   // tunnel through the range → Back Quad
@@ -86,11 +87,10 @@ export const LOCATIONS = [
   // ============ BAR QUAD — GROUND level, nestled in the AC's L (surrounded by it) ====
   { id: "barquad", name: "Bar Quad", type: "quad", x: 53, z: 53, w: 28, d: 20 },   // x39..67, z43..63 — reached via the AC tunnel
 
-  // ---- A small BRICK building directly E of the AC, with a stair-gap (terrace→ground) ----
-  { id: "ac-east-n", name: "AC East Range", type: "modern", x: 69, z: 47, w: 4, d: 26, h: 13, brick: true }, // x67..71, z34..60
-  { id: "ac-east-s", name: "AC East Range", type: "modern", x: 78, z: 47, w: 4, d: 26, h: 13, brick: true }, // x76..80, z34..60 (gap x71..76 = the stair-slot)
-  // ---- C-Day Lewis Room — BRICK, in the SE corner (within the perimeter) ----
-  { id: "cday",      name: "C-Day Lewis Room", type: "modern", x: 75, z: 73, w: 14, d: 14, h: 13, brick: true }, // x68..82, z66..80
+  // ---- ONE brick building on the far E (against Bowra); the terrace's east arm runs W of it ----
+  { id: "goddard",   name: "Goddard Building", type: "modern", x: 87, z: 48, w: 14, d: 30, h: 13, brick: true }, // x80..94, z33..63
+  // ---- C-Day Lewis Room — BRICK, in the SE corner (within the perimeter, reached at ground) ----
+  { id: "cday",      name: "C-Day Lewis Room", type: "modern", x: 74, z: 73, w: 14, d: 14, h: 13, brick: true }, // x67..81, z66..80
 
   // ============ GARDENS (north; lawns only — walls in WALLS) ============
   // fellows + cloister = one open L-shaped garden (N + E of the Front Quad).
@@ -105,7 +105,7 @@ export const LOCATIONS = [
   { id: "se-link",    name: "Bowra Building", type: "range", x: 100, z: 33, w: 12, d: 112, h: 16, brick: true }, // Bowra IS the east perimeter (x94..106, z-23..89; abuts the Library terrace, seals the NE)
 
   // ---------------- PLUSH (off-site, down Broad St & Cornmarket) ------------
-  { id: "plush",      name: "PLUSH",               type: "goal",   x: -70, z: 28, w: 8, d: 8, h: 7, goal: true },
+  { id: "plush",      name: "PLUSH",               type: "goal",   x: -68, z: 44, w: 8, d: 8, h: 7, goal: true },
 ];
 
 /* -----------------------------------------------------------------------------
@@ -114,8 +114,8 @@ export const LOCATIONS = [
 export const RAISED = [
   { x: 60, z: 27, w: 70, d: 14, y: 2.4, steps: "none" },  // terrace arm N of the AC: x25..95, z20..34
   { x: 84, z: 2,  w: 20, d: 48, y: 2.4, steps: "none" },  // terrace arm up to the Library: x74..94, z-22..26
-  { x: 88, z: 50, w: 12, d: 34, y: 2.4, steps: "none" },  // terrace arm down the EAST to the C-Day Lewis area: x82..94, z33..67
-  { x: -7, z: 53, w: 14, d: 12, y: 2.4, steps: "none", garden: true },  // ROOF GARDEN, SW of the Back Quad: x-14..0, z47..59
+  { x: 74, z: 49, w: 12, d: 32, y: 2.4, steps: "none" },  // terrace's EAST arm, W of Goddard, E of the Bar: x68..80, z33..65
+  { x: -10, z: 76, w: 18, d: 16, y: 2.4, steps: "none", garden: true },  // ROOF GARDEN, moved to the SW perimeter corner: x-19..1, z68..84
 ];
 
 /* -----------------------------------------------------------------------------
@@ -123,10 +123,9 @@ export const RAISED = [
 ----------------------------------------------------------------------------- */
 export const STEPS = [
   { x: 21, z: 29, w: 8, d: 10, axis: "x", high: "e", y: 2.4 },  // Back Quad (W of AC) up onto the terrace (x17..25)
-  { x: 73.5, z: 38, w: 5, d: 8, axis: "z", high: "n", y: 2.4 }, // through the AC-east stair-gap: terrace → ground (x71..76, z34..42)
-  { x: 88, z: 64, w: 12, d: 8, axis: "z", high: "n", y: 2.4 },  // east terrace → ground at the C-Day Lewis Room
-  { x: -17, z: 53, w: 6, d: 8, axis: "x", high: "e", y: 2.4 },  // roof garden, west stair (x-20..-14)
-  { x: 3,  z: 53, w: 6, d: 8, axis: "x", high: "w", y: 2.4 },   // roof garden, east stair (symmetric) (x0..6)
+  { x: 70, z: 53, w: 6, d: 10, axis: "x", high: "e", y: 2.4 },  // terrace's EAST arm DOWN WESTWARD into the Bar Quad (x67..73): high E=terrace, low W=bar
+  { x: -14, z: 66, w: 6, d: 6, axis: "z", high: "s", y: 2.4 },  // roof garden, west stair (climb S from the south yard) (z63..69)
+  { x: -3,  z: 66, w: 6, d: 6, axis: "z", high: "s", y: 2.4 },  // roof garden, east stair (z63..69)
 ];
 
 /* -----------------------------------------------------------------------------
@@ -189,13 +188,21 @@ export const WALLS = [
    STREET to Plush.
 ----------------------------------------------------------------------------- */
 export const STREET = {
-  path: [ {x:-24,z:0}, {x:-56,z:0}, {x:-56,z:32} ],
+  path: [ {x:-24,z:0}, {x:-56,z:0}, {x:-56,z:46} ],   // down Broad St, left down Cornmarket to the Plush door
   signs: [
     { x:-40, z:-5, text:"Broad Street",      face:"s" },
     { x:-61, z:14, text:"Cornmarket Street", face:"e" },
   ],
-  shops: [ [-46,-7,10,8], [-34,-8,10,8], [-61,8,9,9], [-61,24,9,9], [-48,38,12,9] ],
+  shops: [ [-46,-7,10,8], [-34,-8,10,8], [-61,8,9,9], [-61,24,9,9], [-46,30,9,9] ],
 };
+
+/* -----------------------------------------------------------------------------
+   SCOOTERS — abandoned Voi e-scooters littering Broad Street (decor).
+----------------------------------------------------------------------------- */
+export const SCOOTERS = [
+  { x:-32, z:-5, rot:0.4 }, { x:-39, z:6,  rot:-0.7 }, { x:-30, z:8, rot:0.1 },
+  { x:-50, z:1,  rot:1.3 }, { x:-58, z:15, rot:2.4 },  { x:-44, z:-9, rot:-0.3 },
+];
 
 /* -----------------------------------------------------------------------------
    TREES
@@ -203,7 +210,7 @@ export const STREET = {
 export const TREES = [
   { x:9, z:46, s:2.0, kind:"plane" },      // the great Back Quad plane tree
   { x:13, z:58, s:1.3 }, { x:4, z:40, s:1.1 },                           // more Back Quad trees
-  { x:-10, z:50, s:1.0, y:2.4 }, { x:-4, z:56, s:0.9, y:2.4 },           // roof-garden trees (on the raised platform)
+  { x:-13, z:73, s:1.0, y:2.4 }, { x:-4, z:79, s:0.9, y:2.4 },           // roof-garden trees (on the raised SW platform)
   { x:48, z:-4, s:1.5 }, { x:40, z:6, s:1.3 }, { x:60, z:-14, s:1.4 },   // cloister (lit + trees)
   { x:10, z:-56, s:1.9 }, { x:-8, z:-72, s:1.5 }, { x:34, z:-44, s:1.5 }, { x:-14, z:-40, s:1.4 },
   { x:13, z:-106, s:1.7 }, { x:-8, z:-112, s:1.3 },
@@ -218,19 +225,22 @@ export const POO = [ {x:3, z:46}, {x:-4, z:52}, {x:6, z:55} ];
 /* -----------------------------------------------------------------------------
    ITEMS
 ----------------------------------------------------------------------------- */
+// random:true → the engine SCATTERS it to a random accessible open spot each game
+// (the KEYS stay put, so the locked-garden key-chain still works; only the loose
+//  objects move, so every playthrough you have to actually search).
 export const ITEMS = [
   { id: "key_bar",    name: "Brass key (Bar)",     foundAt: "barquad",      hint: "On the Penrose tiling by the bar, in a puddle of snakebite." },
   { id: "key_garden", name: "Brass key (Garden)",  reward: "invisible_college", hint: "Wilkins hands it over once his dead-scientists club is quorate." },
   { id: "key_chapel", name: "Brass key (Chapel)",  reward: "founders_blessing", hint: "Dorothy's gift. She's dead, bored, generous." },
-  { id: "bodcard",    name: "Your Bod card",       foundAt: "fellowsgarden", hint: "Dropped in the Fellows' Garden under a tree, obviously." },
-  { id: "collegedrink",name:"The college drink",   foundAt: "barquad",      hint: "Sticky, blue, faintly radioactive. The bar insists it's a cocktail." },
+  { id: "bodcard",    name: "Your Bod card",       foundAt: "fellowsgarden", random: true, hint: "You dropped it somewhere tonight. Could be anywhere on site now." },
+  { id: "collegedrink",name:"The college drink",   foundAt: "barquad",      random: true, hint: "Sticky, blue, faintly radioactive. Someone's left it lying around." },
   { id: "book",       name: "Violet's book",       reward: "violet",        hint: "Pressed on you by Violet. You will not read it." },
   { id: "game",       name: "Anjali's card game",  reward: "anjali",        hint: "Anjali swears it 'takes two minutes'. It does not." },
   { id: "key_wardens",name: "Iron key (Warden's)", foundAt: "fellowsgarden", hint: "Half-buried in the Fellows' Garden. Opens the Warden's Garden gate." },
   { id: "key_private",name: "Iron key (Private)",  foundAt: "wardensgarden", hint: "Hidden in the Warden's Garden. Opens the Fellows' Private Garden." },
-  { id: "apiary",     name: "Glass apiary",        foundAt: "fellowsgarden", hint: "Wren's transparent beehive. Built it BEFORE St Paul's." },
-  { id: "statue",     name: "Speaking statue",     foundAt: "fellowsgarden", hint: "A statue that mutters as you pass. Normal garden stuff, per Wilkins." },
-  { id: "rainbow",    name: "Artificial rainbow",  foundAt: "privategarden", hint: "A machine that makes a rainbow from mist. More reliable than the WiFi." },
+  { id: "apiary",     name: "Glass apiary",        foundAt: "fellowsgarden", random: true, hint: "Wren's transparent beehive. It's wandered off — they do that." },
+  { id: "statue",     name: "Speaking statue",     foundAt: "fellowsgarden", random: true, hint: "A statue that mutters as you pass. Could be anywhere, muttering." },
+  { id: "rainbow",    name: "Artificial rainbow",  foundAt: "privategarden", random: true, hint: "A machine that makes a rainbow from mist. More reliable than the WiFi." },
 ];
 
 /* -----------------------------------------------------------------------------
@@ -246,6 +256,12 @@ export const QUESTS = [
   { id: "founders_blessing", title: "The Founder's Blessing", type: "side",
     brief: "Dorothy Wadham is haunting the ante-chapel. She founded the place and never once visited; the least she can do is hand over a key.",
     unlocks: ["key_chapel"], giver: "dorothy" },
+  { id: "report_dylan", title: "Intruder Alert", type: "side",
+    brief: "Dylan Wright has broken into college (again). Find him, then report him to the Porter at the Lodge.",
+    giver: "porter" },
+  { id: "the_blessings", title: "The Three Blessings", type: "side",
+    brief: "Find BT1, BT2 and BT3. One gives you a speed bump, one does your eyebrows, one makes you immune to Arran's ket. Collect all three superpowers.",
+    requires: ["pow_coke","pow_beauty","pow_potion"] },
   { id: "tuesgays", title: "Tuesgays", type: "win",
     brief: "Out at last. Round up your friends, grab the regrettable blue drink, and get to Plush — down Broad Street, left down Cornmarket, on your right.",
     requires: ["gate_open","collegedrink"], requiresAllFriends: true, goalMarker: "plush",
@@ -339,5 +355,31 @@ export const NPCS = [
   { id:"maggie", name:"Maggie Mae", at:"backquad", colour:"#caa472", dog:true, role:"flavour", action:"dog", lines:[
     "(Maggie Mae, the college dog, regards you with profound, ancient judgement.)",
     "She woofs once. It is somehow both a greeting and a warning.",
-    "(Mind where you tread near her. Genuinely.)" ] },
+    "(Mind where you tread near her. Genuinely — that's how you end up tracking it into Plush.)" ] },
+
+  // ===================== THE BTs — superpower dealers ========================
+  { id:"bt1", name:"BT1", at:"backquad", colour:"#d63b6a", hair:"#1a1a1a", role:"flavour", action:"coke", lines:[
+    "BT1. You look slow. Nervous. Locked-in energy. I can fix that.",
+    "Little bump of the white stuff — purely cardio, you understand. You'll move like the wind.",
+    "Go on. Tuesgays won't run to itself." ] },
+  { id:"bt2", name:"BT2", at:"frontquad", colour:"#b46fc9", hair:"#2a1a0a", role:"flavour", action:"beauty", lines:[
+    "BT2. Sit down, babe. Those eyebrows are a cry for help and I am the answer.",
+    "Snip, thread, tint… there. You are now devastatingly beautiful. You can feel it, can't you?",
+    "Walk tall. Everyone in Plush is going to lose their minds." ] },
+  { id:"bt3", name:"BT3", at:"barquad", colour:"#3bbf9a", hair:"#1a1a1a", role:"flavour", action:"potion", lines:[
+    "BT3. Resident apothecary. I hear Arran's been dosing people with ket. Grim.",
+    "Drink this — health potion, my own recipe, tastes of Berocca and spite. His ket won't touch you now.",
+    "You're immune, love. Let him try. Off you go." ] },
+
+  // ===================== THE INTRUDER =======================================
+  { id:"dylan", name:"Dylan Wright", at:"cloister", colour:"#2a2a30", hair:"#0a0a0a", role:"flavour", lines:[
+    "…oh. Oh no. You've seen me. Look, I can explain — I climbed the Bowra. Like a LEGEND climbs the Bowra.",
+    "I don't even GO here anymore. I just really wanted to see the gardens at night. Don't tell the porters.",
+    "(He absolutely should not be in here. You should report Dylan Wright to the Porter.)" ] },
+
+  // ===================== THE ROAMING PORTER =================================
+  { id:"porter2", name:"Garden Porter", at:"fellowsgarden", colour:"#34503f", role:"flavour", roamer:true, lines:[
+    "Evening. I do the garden rounds. The Warden's and the Private gardens are STRICTLY off-limits.",
+    "Catch you trespassing in either and I'll march you straight back to the Front Quad. Don't test me.",
+    "High-vis, sensible shoes, infinite patience. That's the job." ] },
 ];
