@@ -28,6 +28,15 @@
   }
   #view.elf{ animation: elf 1.4s ease-out; }
   @keyframes elf{ 0%{ filter:brightness(1.7) saturate(1.4) blur(2px); } 100%{ filter:none; } }
+  /* the college drink — a woozy, blue-tinted spin */
+  #view.drunk{ animation: drunk 3.6s ease-in-out infinite; }
+  @keyframes drunk{
+    0%{   transform:rotate(0deg)   translate(0,0)    scale(1.02); filter:blur(0.7px) saturate(1.25) hue-rotate(-12deg) brightness(1.04); }
+    25%{  transform:rotate(1.5deg) translate(11px,-4px) scale(1.03); filter:blur(1.8px) saturate(1.45) hue-rotate(-24deg) brightness(1.05); }
+    50%{  transform:rotate(0deg)   translate(0,4px)  scale(1.04); filter:blur(2.4px) saturate(1.35) hue-rotate(-12deg) brightness(1.02); }
+    75%{  transform:rotate(-1.5deg) translate(-11px,-4px) scale(1.03); filter:blur(1.8px) saturate(1.45) hue-rotate(-2deg) brightness(1.05); }
+    100%{ transform:rotate(0deg)   translate(0,0)    scale(1.02); filter:blur(0.7px) saturate(1.25) hue-rotate(-12deg) brightness(1.04); }
+  }
   #poo{ position:fixed; left:0; right:0; bottom:0; height:130px; z-index:41; pointer-events:none;
     opacity:0; transition:opacity .45s;
     background:radial-gradient(120% 120% at 28% 130%, rgba(74,51,31,.6), rgba(74,51,31,0) 58%),

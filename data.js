@@ -45,56 +45,60 @@ export const CONFIG = {
 ----------------------------------------------------------------------------- */
 export const LOCATIONS = [
   // ---------------- APPROACH (west, off Parks Road) ----------------
-  { id: "forecourt",  name: "Forecourt",          type: "garden", x: -40, z: 0,  w: 22, d: 34 },
-  { id: "gatetower",  name: "Porters' Lodge",      type: "gate",   x: -22, z: 0,  w: 8,  d: 8,  h: 15, gate: true },
+  { id: "forecourt",  name: "Forecourt",          type: "garden", x: -36, z: 0,  w: 20, d: 30 },
+  { id: "gatetower",  name: "Porters' Lodge",      type: "gate",   x: -19, z: 0,  w: 8,  d: 8,  h: 15, gate: true },
 
-  // ---------------- FRONT QUAD (square, three-storey ranges) ----------------
-  { id: "frontquad",  name: "Front Quad",          type: "quad",   x: 0,  z: 0,   w: 44, d: 44 },
-  { id: "westrange",  name: "West Range",          type: "range",  x: -21, z: 0,  w: 4,  d: 44, h: 12 },
-  // East side: Chapel (N) + Frontispiece (centre) + Hall (S); chapel & old
-  // library stick out EAST as a wing.
-  { id: "chapel",     name: "Chapel",              type: "range",  x: 21, z: -13, w: 5,  d: 18, h: 16, style: "chapel",
-      project: { dir: "east", w: 9, d: 13, z: -15, h: 15, name: "Chapel & Old Library" } },
-  { id: "frontispiece",name:"The Frontispiece",    type: "marker", x: 19, z: 0,   w: 4,  d: 4,  h: 18 },
-  { id: "hall",       name: "Hall",                type: "range",  x: 21, z: 13,  w: 5,  d: 18, h: 15, style: "hall", cupola: true },
-  // North range — NE-corner archway to the gardens (offset toward the chapel).
-  { id: "northrange", name: "Warden's Lodgings",   type: "range",  x: 0,  z: -21, w: 44, d: 4,  h: 12, archway: true, archOffset: 15 },
-  // South range — TWO archways, at the SW and SE corners, into Back Quad.
-  { id: "southrange", name: "SCR & South Range",   type: "range",  x: 0,  z: 21,  w: 44, d: 4,  h: 12, arches: [-15, 15] },
+  // ============ FRONT QUAD (historic, on Parks Road — WEST) ============
+  // Square, three-storey ranges. Gate/Lodge on the W; Warden's Lodgings N;
+  // SCR S; the Hall + Frontispiece + Chapel form the EAST range (the spine it
+  // shares with the Back Quad). Old Library is above the Chapel; Cloisters N.
+  { id: "frontquad",  name: "Front Quad",          type: "quad",   x: 0,  z: 0,   w: 38, d: 38 },
+  { id: "westrange",  name: "West Range",          type: "range",  x: -18, z: 0,  w: 4,  d: 38, h: 12 },
+  { id: "northrange", name: "Warden's Lodgings",   type: "range",  x: 0,  z: -18, w: 38, d: 4,  h: 12, archway: true, archOffset: 13 }, // NE corner → gardens
+  { id: "southrange", name: "SCR & South Range",   type: "range",  x: 0,  z: 18,  w: 38, d: 4,  h: 12, arches: [-13] },                 // SW corner → Holywell
+  { id: "chapel",     name: "Chapel & Old Library", type: "range", x: 19, z: -10, w: 5,  d: 16, h: 17, style: "chapel" },               // z -18..-2
+  { id: "frontispiece",name:"The Frontispiece",    type: "marker", x: 17, z: -1,  w: 4,  d: 4,  h: 18 },
+  { id: "hall",       name: "Hall",                type: "range",  x: 19, z: 8,   w: 5,  d: 9,  h: 15, style: "hall", cupola: true },    // z 3.5..12.5; SE gap = the slype to Back Quad
+  { id: "cloisters",  name: "The Cloisters",       type: "range",  x: 19, z: -23, w: 7,  d: 6,  h: 10 },                                 // N of the chapel, toward the gardens
 
-  // ---------------- GARDENS (north; walled individually + to outside) -------
-  { id: "fellowsgarden", name: "Fellows' Garden",  type: "garden", x: 8,  z: -50, w: 40, d: 36, walled: true,
-      gates: [ {side:"s", at: 8, width: 6}, {side:"n", at: 6, width: 5}, {side:"w", at:-50, width: 5}, {side:"e", at:-44, width: 5} ] },
-  { id: "privategarden", name: "Fellows' Private Garden", type: "garden", x: 8, z: -90, w: 40, d: 34, walled: true,
-      gates: [ {side:"s", at: 6, width: 5} ] },
-  { id: "terrace",    name: "Civil War Terrace",   type: "marker", x: 26, z: -90, w: 4, d: 30, h: 3 },
-  { id: "wardensgarden", name: "Warden's Garden",  type: "garden", x: -28, z: -58, w: 26, d: 40, walled: true,
-      gates: [ {side:"e", at:-58, width: 5} ] },
-  { id: "cloister",   name: "Cloister Garden",     type: "garden", x: 42, z: -28, w: 22, d: 22, walled: true,
-      gates: [ {side:"w", at:-28, width: 5}, {side:"n", at: 42, width: 4} ] },
+  // ============ BACK QUAD (directly EAST of the Hall) ============
+  // You reach it from the Front Quad's SE corner (the slype, past the Hall).
+  // Surrounded by ranges; the JCR/bar colonnade on its W side.
+  { id: "backquad",   name: "Back Quad",           type: "quad",   x: 44, z: 0,   w: 38, d: 38 },
+  { id: "bq-west",    name: "Back Quad (W range)",  type: "range",  x: 26, z: -4,  w: 4,  d: 28, h: 11 },  // z -18..10, leaves the slype open at z 10..18
+  { id: "bq-north",   name: "Back Quad (N range)",  type: "range",  x: 44, z: -18, w: 40, d: 4,  h: 12 },
+  { id: "bq-south",   name: "Back Quad (S range)",  type: "range",  x: 44, z: 18,  w: 40, d: 4,  h: 12 },
+  // E range = an undercroft: raised on the upper floor, open at ground level so
+  // you walk E–W through the gap into Bar Quad.
+  { id: "bq-east",    name: "Undercroft Range",    type: "range",  x: 63, z: 0,   w: 4,  d: 38, h: 13, archway: true, archOffset: 0 },
 
-  // ---------------- BACK QUAD (south; lawn + big plane tree) ----------------
-  { id: "backquad",   name: "Back Quad",           type: "quad",   x: -2, z: 48,  w: 34, d: 30 },
-  { id: "bq-west",    name: "Back Quad (W range)",  type: "range",  x: -22, z: 48, w: 4,  d: 34, h: 12 },
-  { id: "bq-south",   name: "Back Quad (S range)",  type: "range",  x: -2, z: 65,  w: 42, d: 4,  h: 12 },
-  // N–S building between Back Quad and Bar Quad: raised on an undercroft, so you
-  // walk through E–W at ground level (the archway is the gap).
-  { id: "ncross",     name: "Undercroft Range",    type: "range",  x: 20, z: 48,  w: 6, d: 34, h: 13, archway: true, archOffset: 0 },
+  // ============ BAR QUAD / WEBB QUAD (east, through the undercroft) ========
+  { id: "barquad",    name: "Bar Quad",            type: "quad",   x: 80, z: 0,   w: 32, d: 34 },
+  { id: "jcr",        name: "JCR & Bar",           type: "range",  x: 80, z: -15, w: 16, d: 6,  h: 9 },   // Penrose tiling outside
 
-  // ---------------- BAR QUAD / WEBB QUAD (east, via the undercroft) ---------
-  { id: "barquad",    name: "Bar Quad",            type: "quad",   x: 44, z: 48,  w: 30, d: 30 },
-  { id: "jcr",        name: "JCR & Bar",           type: "range",  x: 44, z: 33,  w: 16, d: 6, h: 9 }, // Penrose tiling outside
+  // ============ MODERN RAISED CLUSTER (north-east) ============
+  // The Access Centre is lower; you climb its north side up to the Library, and
+  // behind it sits Bowra. Library + Bowra are on the only higher ground.
+  { id: "ac",         name: "Access Centre",       type: "modern", x: 48, z: -24, w: 16, d: 11, h: 12 },
+  { id: "library",    name: "Ferdowsi Library",    type: "modern", x: 50, z: -42, w: 22, d: 15, h: 14, raised: true }, // brutalist, up the steps
+  { id: "bowra",      name: "Bowra Building",      type: "modern", x: 74, z: -40, w: 14, d: 24, h: 16, raised: true },
 
-  // ---------------- RAISED south-east: AC, Library, Bowra ------------------
-  { id: "ac",         name: "Access Centre",       type: "modern", x: 18, z: 70,  w: 16, d: 12, h: 12 },
-  { id: "library",    name: "Ferdowsi Library",    type: "modern", x: 46, z: 74,  w: 20, d: 16, h: 14, raised: true }, // brutalist, up the steps
-  { id: "bowra",      name: "Bowra Building",      type: "modern", x: 66, z: 70,  w: 14, d: 26, h: 16, raised: true },
+  // ============ GARDENS (north of both quads; walled rooms per the site plan) ==
+  { id: "cloister",      name: "Cloister Garden",  type: "garden", x: 30, z: -36, w: 16, d: 14, walled: true,
+      gates: [ {side:"w", at:-36, width: 5}, {side:"s", at: 30, width: 4} ] },                                          // former cemetery, by the Cloisters
+  { id: "fellowsgarden", name: "Fellows' Garden",  type: "garden", x: -2, z: -48, w: 42, d: 26, walled: true,
+      gates: [ {side:"s", at: 13, width: 6}, {side:"n", at:-2, width: 5}, {side:"w", at:-48, width: 5}, {side:"e", at:-48, width: 5} ] },
+  { id: "wardensgarden", name: "Warden's Garden",  type: "garden", x: -32, z: -48, w: 22, d: 28, walled: true,
+      gates: [ {side:"e", at:-48, width: 5} ] },
+  { id: "privategarden", name: "Fellows' Private Garden", type: "garden", x: -2, z: -78, w: 42, d: 26, walled: true,
+      gates: [ {side:"s", at:-2, width: 5} ] },
+  { id: "terrace",    name: "Civil War Terrace",   type: "marker", x: 17, z: -78, w: 4,  d: 24, h: 3 },
 
   // ---------------- HOLYWELL (south edge, Holywell Street) ------------------
-  { id: "holywell",   name: "Holywell Music Room", type: "range",  x: -16, z: 80, w: 16, d: 12, h: 10 },
+  { id: "holywell",   name: "Holywell Music Room", type: "range",  x: -2, z: 42,  w: 16, d: 12, h: 10 },
 
   // ---------------- PLUSH (off-site, down Broad St & Cornmarket) ------------
-  { id: "plush",      name: "PLUSH",               type: "goal",   x: -72, z: 30, w: 8, d: 8, h: 7, goal: true },
+  { id: "plush",      name: "PLUSH",               type: "goal",   x: -70, z: 28, w: 8, d: 8, h: 7, goal: true },
 ];
 
 /* -----------------------------------------------------------------------------
@@ -103,7 +107,7 @@ export const LOCATIONS = [
    Engine builds a stone platform with steps and lifts you onto it.
 ----------------------------------------------------------------------------- */
 export const RAISED = [
-  { x: 50, z: 72, w: 44, d: 28, y: 2.4, steps: "w" },   // library + Bowra terrace, steps on the west
+  { x: 60, z: -41, w: 52, d: 22, y: 2.4, steps: "s" },  // Library + Bowra terrace; climb the steps on the south (from the AC / Back Quad)
 ];
 
 /* -----------------------------------------------------------------------------
@@ -112,29 +116,29 @@ export const RAISED = [
    only the college is.) path = lamp-lit gravel polyline.
 ----------------------------------------------------------------------------- */
 export const STREET = {
-  path: [ {x:-26,z:0}, {x:-58,z:0}, {x:-58,z:34} ],     // gate → Broad St (W) → left down Cornmarket (S)
+  path: [ {x:-24,z:0}, {x:-56,z:0}, {x:-56,z:32} ],     // gate → Broad St (W) → left down Cornmarket (S)
   signs: [
     { x:-40, z:-5, text:"Broad Street",      face:"s" },
-    { x:-63, z:16, text:"Cornmarket Street", face:"e" },
+    { x:-61, z:14, text:"Cornmarket Street", face:"e" },
   ],
   // dark shopfronts for atmosphere along the route
-  shops: [ [-48,-7,10,8], [-36,-8,10,8], [-63,8,9,9], [-63,26,9,9], [-50,40,12,9] ],
+  shops: [ [-46,-7,10,8], [-34,-8,10,8], [-61,8,9,9], [-61,24,9,9], [-48,38,12,9] ],
 };
 
 /* -----------------------------------------------------------------------------
    TREES — big specimen trees (the engine also scatters smaller ones in gardens).
 ----------------------------------------------------------------------------- */
 export const TREES = [
-  { x:-2, z:48, s:2.2, kind:"plane" },    // the great Back Quad plane tree
-  { x:6, z:-50, s:1.8 }, { x:18, z:-44, s:1.5 }, { x:-2, z:-58, s:1.6 },
-  { x:6, z:-90, s:1.7 }, { x:-28,z:-58, s:1.6 }, { x:-24,z:-70, s:1.4 },
-  { x:42, z:-28, s:1.3 }, { x:40, z:50, s:1.4 },
+  { x:44, z:2, s:2.2, kind:"plane" },     // the great Back Quad plane tree
+  { x:-2, z:-48, s:1.8 }, { x:-16, z:-44, s:1.5 }, { x:12, z:-52, s:1.4 },
+  { x:-2, z:-78, s:1.7 }, { x:-32, z:-48, s:1.6 }, { x:-28, z:-56, s:1.4 },
+  { x:30, z:-36, s:1.3 }, { x:38, z:8, s:1.4 },
 ];
 
 /* -----------------------------------------------------------------------------
    MAGGIE MAE — dog poo you can step in. (Grim. Sorry.)
 ----------------------------------------------------------------------------- */
-export const POO = [ {x:-6,z:44}, {x:2,z:52}, {x:-10,z:50} ];
+export const POO = [ {x:42, z:-3}, {x:48, z:5}, {x:40, z:6} ];
 
 /* -----------------------------------------------------------------------------
    ITEMS — pickups & quest objects.

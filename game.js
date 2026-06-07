@@ -76,8 +76,8 @@ let running = true;                   // master run flag (false while a menu is 
 let started = false;
 
 const PLAYER = { h: 1.7, r: 0.55, speed: 5.4, run: 8.6, reach: 3.4 };
-const BOUNDARY = { minX: -94, maxX: 86, minZ: -122, maxZ: 94 };
-const fx = { ket: 0, elf: 0, poo: 0, choir: 0, floorY: 1.7 };   // effect timers / state
+const BOUNDARY = { minX: -90, maxX: 104, minZ: -100, maxZ: 60 };
+const fx = { ket: 0, elf: 0, poo: 0, drunk: 0, choir: 0, floorY: 1.7 };   // effect timers / state
 
 /* ============================================================================
    BOOT — passphrase splash, then the start overlay (pointer lock needs a click)
@@ -174,7 +174,7 @@ function initWorld() {
 
   // QA hook — only active if you load index.html#debug. Lets a test harness
   // orbit the camera to inspect the world. Never touched during normal play.
-  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, nearestInteractable };
+  if (location.hash === '#debug') window.__wadham = { THREE, scene, camera, renderer, state, colliders, npcs, pickups, poos, fx, openGate, look, checkWin, currentObjective, updateHUD, NPCS, SND, collidesAt, floorYAt, talkTo, runAction, ketamine, drinkUp, nearestInteractable };
 }
 
 const ctx = {};   // scratch buffers for instancing
@@ -1025,6 +1025,7 @@ function takePickup(pk) {
   const lore = pk.item.hint ? ` — ${pk.item.hint}` : '';
   toast(`Picked up: ${pk.item.name}${lore}`);
   flashItem(pk.item);
+  if (pk.item.id === 'collegedrink') drinkUp();    // you take a sip on the spot
   evaluateQuests();
   updateHUD();
 }
@@ -1060,12 +1061,17 @@ function runAction(action, n) {
 }
 function ketamine() { fx.ket = 26; beep('gate'); toast("You take the bump. The edges of Wadham begin to… breathe."); }
 function elfPuff() { fx.elf = 5; beep('talk'); toast("Watermelon ice fills your lungs. You feel briefly, chemically, fine."); }
+function drinkUp() { fx.drunk = 24; beep('friend'); toast("You neck the college drink — sticky, blue, structurally unsound. The quad begins to gently spin."); }
 
 /* drive the screen-effect overlays from the fx timers (CSS does the visuals) */
 function applyFx(dt) {
-  ['ket', 'elf', 'poo'].forEach((k) => { if (fx[k] > 0) fx[k] = Math.max(0, fx[k] - dt); });
+  ['ket', 'elf', 'poo', 'drunk'].forEach((k) => { if (fx[k] > 0) fx[k] = Math.max(0, fx[k] - dt); });
   const v = $('view');
-  if (v) { v.classList.toggle('ket', fx.ket > 0); v.classList.toggle('elf', fx.elf > 0); }
+  if (v) {
+    v.classList.toggle('ket', fx.ket > 0);
+    v.classList.toggle('elf', fx.elf > 0);
+    v.classList.toggle('drunk', fx.drunk > 0 && fx.ket <= 0);   // ketamine takes visual priority
+  }
   const p = $('poo'); if (p) p.classList.toggle('show', fx.poo > 0);
 }
 
@@ -1441,7 +1447,7 @@ function updatePlayer(dt) {
     if (isTouch) { s += move.x; f -= move.y; }
   }
   const sprint = keys['ShiftLeft'] || keys['ShiftRight'];
-  const sp = (sprint ? PLAYER.run : PLAYER.speed) * (fx.ket > 0 ? 0.68 : 1);   // ketamine = woozy
+  const sp = (sprint ? PLAYER.run : PLAYER.speed) * (fx.ket > 0 ? 0.68 : 1) * (fx.drunk > 0 ? 0.82 : 1);   // ket/drink = woozy
 
   // forward/right from camera yaw (flattened)
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0;
@@ -1467,7 +1473,7 @@ function updatePlayer(dt) {
   nx = clamp(nx, BOUNDARY.minX, BOUNDARY.maxX);
   nz = clamp(nz, BOUNDARY.minZ, BOUNDARY.maxZ);
   // pre-gate lock: can't slip out to the west exterior at the gate's latitude
-  if (!state.flags.has('gate_open') && nz > -26 && nz < 30 && nx < -22.5) nx = -22.5;
+  if (!state.flags.has('gate_open') && nz > -24 && nz < 26 && nx < -16) nx = -16;
 
   camera.position.x = nx; camera.position.z = nz;
   // floor height (the raised Library/Bowra terrace) + smoothed head-bob
@@ -1609,6 +1615,10 @@ function tick() {
       n.group.lookAt(camera.position.x, n.group.position.y, camera.position.z);
     }
     n.label.position.y = n.by + 2.5 + bob;
+    // fade name labels with distance so 16 of them don't clutter the screen
+    const ld = Math.hypot(n.baseX - camera.position.x, n.baseZ - camera.position.z);
+    n.label.visible = ld < 34;
+    n.label.material.opacity = clamp(1.4 - ld / 24, 0, 1);
   });
   // beacon spin
   if (beacons[0].visible) { beacons[0].rotation.y += dt; beacons[0].position.y = Math.sin(t * 2) * 0.1; }
